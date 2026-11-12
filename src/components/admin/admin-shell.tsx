@@ -220,7 +220,7 @@ export function SidebarContent({
       </div>
 
       {/* منو */}
-      <ScrollArea className="flex-1 px-3 py-4">
+      <ScrollArea className="flex-1 min-h-0 px-3 py-4">
         <nav aria-label="منوی اصلی" className="space-y-6">
           {MENU.map((group, gi) => {
             const visibleItems = group.items.filter((it) => can(it.perm))
