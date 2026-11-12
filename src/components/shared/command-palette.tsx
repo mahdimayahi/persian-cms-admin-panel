@@ -202,7 +202,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   const searchReady = trimmed.length >= 2
   const sections: Section[] = []
 
-  // در حالت جست‌وجو فقط نتایج نمایش داده می‌شود تا Enter مستقیم به نتیجه برود
+  // علاقه‌مندی‌ها و اقدام‌های سریع فقط در حالت بیکار (بدون عبارت جست‌وجو) نمایش داده می‌شوند
   if (!searchReady) {
     const favoriteItems: PaletteItem[] = favorites.map((f) => ({
     key: `fav-${f.id}`,
@@ -235,19 +235,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   if (actionItems.length > 0) sections.push({ id: 'actions', title: 'اقدام‌های سریع', items: actionItems })
   }
 
-  if (!searchReady) {
-  const pageItems: PaletteItem[] = COMMAND_PALETTE_NAV.filter(
-    (n) => can(n.perm) && normalizeFa(n.label).includes(normalizeFa(trimmed))
-  ).map((n) => ({
-    key: `nav-${n.href}`,
-    icon: <n.icon className="h-4 w-4 shrink-0 text-teal-600" aria-hidden />,
-    title: n.label,
-    subtitle: n.href,
-    onSelect: () => go(n.href),
-  }))
-  if (pageItems.length > 0) sections.push({ id: 'pages', title: 'صفحه‌ها', items: pageItems })
-  }
-
+  /* نتایج جست‌وجوی سراسری: در حالت جست‌وجو اول می‌آیند تا Enter مستقیم به نتیجه برود */
   const searchItems: PaletteItem[] = []
   if (searchReady && results) {
     for (const a of results.articles) {
@@ -289,6 +277,18 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
     }
   }
   if (searchItems.length > 0) sections.push({ id: 'search', title: 'نتایج جست‌وجو', items: searchItems })
+
+  /* صفحه‌های منو همیشه در دسترس‌اند — حتی حین جست‌وجوی سراسری */
+  const pageItems: PaletteItem[] = COMMAND_PALETTE_NAV.filter(
+    (n) => can(n.perm) && normalizeFa(n.label).includes(normalizeFa(trimmed))
+  ).map((n) => ({
+    key: `nav-${n.href}`,
+    icon: <n.icon className="h-4 w-4 shrink-0 text-teal-600" aria-hidden />,
+    title: n.label,
+    subtitle: n.href,
+    onSelect: () => go(n.href),
+  }))
+  if (pageItems.length > 0) sections.push({ id: 'pages', title: 'صفحه‌ها', items: pageItems })
 
   /* فهرست مسطح همه ردیف‌های قابل انتخاب برای ناوبری با کلید */
   const flat: { item: PaletteItem; sectionTitle: string | null }[] = []
@@ -410,7 +410,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
               در حال جست‌وجو…
             </div>
           ) : null}
-          {searchReady && !searching && searchItems.length === 0 ? (
+          {searchReady && !searching && flat.length === 0 ? (
             <p className="px-3 py-3 text-sm text-muted-foreground" role="status">
               نتیجه‌ای یافت نشد.
             </p>
