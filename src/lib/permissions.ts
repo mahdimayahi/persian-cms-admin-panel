@@ -50,6 +50,8 @@ export type Permission =
   | 'settings.manage'
   | 'reports.view'
   | 'activity.view'
+  | 'analytics.view'
+  | 'analytics.manage'
 
 export const PERMISSION_LABELS: Record<Permission, string> = {
   'articles.view': 'مشاهده مقالات',
@@ -80,6 +82,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'settings.manage': 'ویرایش تنظیمات',
   'reports.view': 'مشاهده گزارش‌ها',
   'activity.view': 'مشاهده تاریخچه فعالیت',
+  'analytics.view': 'مشاهده نتیجهٔ محتوا و آزمایش‌ها',
+  'analytics.manage': 'تعریف هدف و مدیریت آزمایش A/B',
 }
 
 const AUTHOR_PERMISSIONS: Permission[] = [
@@ -118,6 +122,8 @@ const EDITOR_PERMISSIONS: Permission[] = [
   'reports.view',
   'activity.view',
   'roles.view',
+  'analytics.view',
+  'analytics.manage',
 ]
 
 const ADMIN_PERMISSIONS: Permission[] = [...EDITOR_PERMISSIONS, 'users.view', 'users.manage', 'settings.view', 'settings.manage']
@@ -126,7 +132,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   ADMIN: ADMIN_PERMISSIONS,
   EDITOR: EDITOR_PERMISSIONS,
   AUTHOR: AUTHOR_PERMISSIONS,
-  VIEWER: ['articles.view', 'comments.view', 'media.view', 'pages.view', 'forms.view', 'reports.view', 'roles.view', 'settings.view'],
+  VIEWER: ['articles.view', 'comments.view', 'media.view', 'pages.view', 'forms.view', 'reports.view', 'roles.view', 'settings.view', 'analytics.view'],
 }
 
 export function roleHasPermission(role: string, permission: Permission): boolean {
@@ -145,4 +151,5 @@ export const PERMISSION_GROUPS: { group: string; permissions: Permission[] }[] =
   { group: 'فرم‌ها', permissions: ['forms.view', 'forms.manage'] },
   { group: 'کاربران', permissions: ['users.view', 'users.manage', 'roles.view'] },
   { group: 'سامانه', permissions: ['settings.view', 'settings.manage', 'reports.view', 'activity.view'] },
+  { group: 'سنجش و آزمایش', permissions: ['analytics.view', 'analytics.manage'] },
 ]

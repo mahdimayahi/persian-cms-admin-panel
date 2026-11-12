@@ -58,6 +58,7 @@ import { MessageSquare, Sparkles, TrendingUp } from 'lucide-react'
 import { apiGet, apiPost, apiPut, ApiError } from '@/lib/client/api'
 import { timeAgo, toFa, faDateTime, faDate } from '@/lib/client/format'
 import { useAppStore, useCan } from '@/store/app-store'
+import { ArticlePerformancePanel } from '@/components/shared/article-performance'
 import { articleStatusInfo, TRANSITION_LABELS, type TransitionAction } from '@/lib/constants'
 import {
   GLOSSARY_FIELD_LABELS,
@@ -910,6 +911,7 @@ export function ArticleEditorView() {
             </TabsTrigger>
           ) : null}
           {editingId ? <TabsTrigger value="versions">نسخه‌ها</TabsTrigger> : null}
+          {editingId && can('analytics.view') ? <TabsTrigger value="performance">عملکرد</TabsTrigger> : null}
         </TabsList>
 
         {/* ─── تب محتوا ─────────────────────────────────────────── */}
@@ -1710,9 +1712,12 @@ export function ArticleEditorView() {
             </ul>
           )}
         </TabsContent>
-      </Tabs>
 
-      {/* گفت‌وگوی انتخاب رسانه */}
+        {/* ─── تب عملکرد ─────────────────────────────────────────── */}
+        <TabsContent value="performance" className="mt-4">
+          {editingId ? <ArticlePerformancePanel articleId={editingId} /> : null}
+        </TabsContent>
+      </Tabs>
       <MediaPickerDialog
         open={mediaPickerOpen}
         onOpenChange={setMediaPickerOpen}

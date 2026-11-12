@@ -28,6 +28,8 @@ import { UsersView } from '@/components/views/users-view'
 import { RolesView } from '@/components/views/roles-view'
 import { FormsView } from '@/components/views/forms-view'
 import { ReportsView } from '@/components/views/reports-view'
+import { OutcomesView } from '@/components/views/outcomes-view'
+import { ExperimentsView } from '@/components/views/experiments-view'
 import { ActivityView } from '@/components/views/activity-view'
 import { SettingsView } from '@/components/views/settings-view'
 import { AccountView } from '@/components/views/account-view'
@@ -35,9 +37,18 @@ import { LoadingSpinner, EmptyState } from '@/components/shared/ui-bits'
 
 type MeResponse = { user: CurrentUser; permissions: string[] }
 
-function renderView(path: string) {
+function renderView(path: string, permissions: string[]) {
   const seg = path.split('/').filter(Boolean)
   const root = seg[0] ?? 'dashboard'
+  // دسترسی پیش‌فرض محدود: نمای‌های سنجش و آزمایش فقط با مجوز مربوط (اعمال واقعی در سرور هم بررسی می‌شود)
+  if ((root === 'outcomes' || root === 'experiments') && !permissions.includes('analytics.view')) {
+    return (
+      <EmptyState
+        title="دسترسی ندارید"
+        description="مشاهدهٔ نتیجهٔ محتوا و آزمایش‌ها تابع مجوزهای شماست. برای دسترسی با مدیر سامانه تماس بگیرید."
+      />
+    )
+  }
 
   switch (root) {
     case 'dashboard':
@@ -81,6 +92,10 @@ function renderView(path: string) {
       return <FormsView />
     case 'reports':
       return <ReportsView />
+    case 'outcomes':
+      return <OutcomesView />
+    case 'experiments':
+      return <ExperimentsView />
     case 'activity':
       return <ActivityView />
     case 'settings':
@@ -101,6 +116,7 @@ export default function Page() {
   const { path } = useHashRoute()
   const user = useAppStore((s) => s.user)
   const booting = useAppStore((s) => s.booting)
+  const permissions = useAppStore((s) => s.permissions)
   const setUser = useAppStore((s) => s.setUser)
   const setPermissions = useAppStore((s) => s.setPermissions)
   const setBooting = useAppStore((s) => s.setBooting)
@@ -142,7 +158,7 @@ export default function Page() {
 
   return (
     <AdminShell path={path} navigate={(to) => (window.location.hash = to)}>
-      {renderView(path)}
+      {renderView(path, permissions)}
     </AdminShell>
   )
 }

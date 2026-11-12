@@ -142,6 +142,8 @@ model Article {
   versions       ArticleVersion[]
   comments       Comment[]
   bundleItems    BundleItem[]
+  goals          ContentGoal[]
+  experiments    Experiment[]
 
   @@index([status])
   @@index([authorId])
@@ -600,4 +602,149 @@ model HealthIgnore {
   ignoredById String
   ignoredByName String
   createdAt   DateTime @default(now())
+}
+
+// ─── مرحله ۴: سنجش نتیجه محتوا و آزمایش A/B ───────────────────────
+
+// هدف محتوا — اتصال محتوا به هدف کسب‌وکار با قرارداد شاخص شفاف
+model ContentGoal {
+  id                String    @id @default(cuid())
+  title             String
+  contentId         String // محتوای هدف (مقالهٔ منتشرشده، مانند صفحهٔ معرفی خدمت)
+  article           Article   @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  primaryGoal       String // هدف اصلی کسب‌وکار (متن)
+  successEvent      String    @default("FORM_SUCCESS") // رویداد موفقیت: FORM_SUCCESS | SIGNUP | PURCHASE
+  metricLabel       String // برچسب شاخص اصلی (مثل «نرخ ثبت درخواست مشاوره»)
+  metricNumerator   String // تعریف صورت نرخ (ثابت و شفاف)
+  metricDenominator String // تعریف مخرج نرخ (ثابت و شفاف)
+  attributionRule   String    @default("AFTER_FIRST_VIEW") // AFTER_FIRST_VIEW | SAME_SESSION
+  attributionHours  Int       @default(24) // پنجرهٔ انتساب
+  reportFrom        DateTime? // آغاز بازهٔ گزارش (منطقهٔ زمانی گزارش: Asia/Tehran)
+  ownerUserId       String? // مسئول پیگیری
+  ownerName         String?
+  status            String    @default("ACTIVE") // ACTIVE | PAUSED | ARCHIVED
+  createdById       String
+  createdByName     String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([contentId])
+  @@index([status])
+}
+
+// رویداد تحلیلی محدود و مشخص — بدون دادهٔ شخصی و بدون متن فرم
+// eventId یکتا است؛ ارسال مجدد همان شناسه شمارش تکراری ایجاد نمی‌کند
+model AnalyticsEvent {
+  id               String   @id @default(cuid())
+  eventId          String   @unique // شناسه یکتای رویداد (ضد شمارش تکراری)
+  eventType        String // PAGE_VIEW | CTA_CLICK | FORM_START | FORM_SUCCESS | FORM_INVALID | SIGNUP | PURCHASE
+  occurredAt       DateTime // زمان وقوع واقعی
+  contentId        String? // شناسه پایدار محتوا
+  contentVersionId String? // نسخهٔ محتوا یا شناسه انتشار در صورت امکان
+  visitorId        String // شناسه مستعار نشست/بازدیدکننده در حدود مجاز
+  sessionId        String? // شناسه مستعار نشست
+  referrer         String   @default("") // منبع ورود پاک‌سازی‌شده
+  experimentId     String? // شناسه آزمایش اگر رویداد مربوط به آزمایش است
+  variantGroup     String? // CONTROL | VARIANT
+  isInternal       Boolean  @default(false) // ترافیک داخلی (پیش‌نمایش/مدیر) — از گزارش نتیجه کنار می‌رود
+  isBot            Boolean  @default(false) // ربات شناخته‌شده
+  isConsented      Boolean  @default(true) // رضایت ردیابی — بدون رضایت فقط شمارش پوشش
+  isSimulated      Boolean  @default(false) // دادهٔ شبیه‌سازی‌شدهٔ نمایشی
+  createdAt        DateTime @default(now())
+
+  @@index([contentId, eventType, occurredAt])
+  @@index([experimentId, variantGroup, eventType])
+  @@index([visitorId])
+  @@index([occurredAt])
+}
+
+// دفتر پذیرش رویداد — شفافیت کیفیت داده؛ تکرار و نامعتبر پذیرفته نمی‌شوند اما ثبت می‌گردند
+model EventIngestLog {
+  id        String   @id @default(cuid())
+  eventId   String
+  status    String // ACCEPTED | DUPLICATE | INVALID
+  reason    String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([status, createdAt])
+}
+
+// آزمایش A/B — مقایسهٔ کنترل‌شده دو نسخه با تصمیم انسانی
+model Experiment {
+  id                    String    @id @default(cuid())
+  title                 String
+  hypothesis            String // فرضیهٔ مشخص (اثر تغییر روی شاخص اصلی)
+  ownerUserId           String?
+  ownerName             String?
+  targetContentId       String // محتوای هدف (مقالهٔ نسخه‌بندی‌شده)
+  article               Article  @relation(fields: [targetContentId], references: [id], onDelete: Cascade)
+  changeType            String    @default("TITLE") // TITLE | CTA_TEXT | HERO_IMAGE | BLOCK — نسخهٔ اول فقط یک تغییر
+  slotLabel             String    @default("") // محل تغییر، مثل «عنوان صفحهٔ معرفی خدمت»
+  controlVersionId      String? // اتصال نسخهٔ کنترل به شناسهٔ نسخه (مرحله ۲)
+  variantVersionId      String? // اتصال نسخهٔ جایگزین به شناسهٔ نسخه
+  variantPayload        String    @default("{}") // JSON محتوای نسخهٔ جایگزین (مثل عنوان پیشنهادی)
+  assignmentUnit        String    @default("VISITOR") // واحد تخصیص
+  trafficSplitPercent   Int       @default(50) // سهم نسخهٔ جایگزین
+  eligiblePopulation    String    @default("CONSENTED") // ALL | CONSENTED
+  primaryMetricEvent    String    @default("FORM_SUCCESS") // شاخص اصلی
+  attributionHours      Int       @default(24) // پنجرهٔ زمانی انتساب تبدیل به مواجهه
+  guardrailsJson        String    @default("[]") // JSON شاخص‌های محافظ [{key,label,maxLiftPp}]
+  plannedSamplePerGroup Int       @default(2000) // برنامهٔ حجم نمونه به‌ازای هر گروه
+  plannedDurationDays   Int       @default(14) // مدت برنامه‌ریزی‌شدهٔ اجرا
+  minDetectableEffectPp Float? // حداقل اثر ارزشمند برای کسب‌وکار (واحد درصد)
+  stoppingRule          String    @default("") // قواعد توقف و تصمیم‌گیری پیش از شروع
+  lastPreflightJson     String    @default("[]") // آخرین نتیجهٔ بررسی فنی
+  status                String    @default("DRAFT") // DRAFT | REVIEW | RUNNING | PAUSED | ENDED | INVALID
+  isAaTest              Boolean   @default(false) // آزمایش A/A برای اعتبارسنجی اندازه‌گیری
+  startedAt             DateTime?
+  pausedAt              DateTime?
+  plannedEndAt          DateTime? // پایان طبق برنامه (منطقهٔ زمانی تهران)
+  endedAt               DateTime?
+  endReason             String    @default("")
+  emergencyStoppedAt    DateTime? // توقف اضطراری — نمایش امن نسخهٔ کنترل
+  decision              String? // WIN_VARIANT | WIN_CONTROL | INCONCLUSIVE | INVALID_DATA — فقط تصمیم انسانی
+  decisionReason        String? // دلیل تصمیم همراه با محدودیت‌های تحلیل
+  decisionLimitations   String    @default("") // محدودیت‌های ثبت‌شده در لحظهٔ تصمیم
+  decidedByName         String?
+  decidedAt             DateTime?
+  invalidReason         String?
+  createdById           String
+  createdByName         String
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  assignments           ExperimentAssignment[]
+  history               ExperimentHistory[]
+
+  @@index([status])
+  @@index([targetContentId, changeType, status])
+}
+
+// تخصیص پایدار و مواجههٔ واقعی — هر بازدیدکننده در هر آزمایش یک رکورد
+// firstExposedAt با تخصیص متفاوت است؛ تبدیل فقط یک‌بار برای هر بازدیدکننده ثبت می‌شود
+model ExperimentAssignment {
+  id             String     @id @default(cuid())
+  experimentId   String
+  experiment     Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  visitorId      String
+  assignedGroup  String // CONTROL | VARIANT
+  assignedAt     DateTime   @default(now())
+  firstExposedAt DateTime? // نخستین مواجههٔ واقعی طبق تعریف فنی
+  exposureCount  Int        @default(0)
+  convertedAt    DateTime? // نخستین تبدیل معتبر در پنجرهٔ انتساب (ضد دوباره‌شماری)
+
+  @@unique([experimentId, visitorId])
+  @@index([experimentId, assignedGroup])
+}
+
+// سابقهٔ آزمایش — شروع، توقف، پایان و تصمیم با مسئول و زمان (تهران)
+model ExperimentHistory {
+  id           String     @id @default(cuid())
+  experimentId String
+  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  kind         String // CREATED | UPDATED | REVIEW | START | PAUSE | RESUME | EMERGENCY_STOP | END | DECISION | INVALID
+  message      String     @default("")
+  userName     String     @default("")
+  createdAt    DateTime   @default(now())
+
+  @@index([experimentId, createdAt])
 }
