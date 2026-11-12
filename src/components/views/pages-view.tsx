@@ -27,6 +27,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DataTable, type Column } from '@/components/shared/data-table'
 import { PageHeader, Field, StatusBadge, ConfirmDialog, ErrorState } from '@/components/shared/ui-bits'
+import { ContentComments } from '@/components/shared/content-comments'
 import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/client/api'
 import { toFa, timeAgo } from '@/lib/client/format'
 import { useCan } from '@/store/app-store'
@@ -392,6 +393,13 @@ export function PagesView() {
                 onCheckedChange={(v) => setForm((f) => ({ ...f, showInNav: v }))}
               />
             </div>
+
+            {/* گفتگوی رکوردی صفحه — فقط هنگام ویرایش صفحهٔ موجود */}
+            {editing ? (
+              <div className="border-t pt-4">
+                <ContentComments entityType="PAGE" entityId={editing.id} />
+              </div>
+            ) : null}
           </div>
 
           <DialogFooter>

@@ -30,6 +30,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -206,6 +207,10 @@ export function ArticleEditorView() {
 
   // تعارض ویرایش هم‌زمان
   const [conflictOpen, setConflictOpen] = React.useState(false)
+
+  // گارد تغییر آدرس محتوای منتشرشده (۴۰۹ تغییر اسلاگ)
+  const [slugGuard, setSlugGuard] = React.useState<{ oldSlug: string; newSlug: string } | null>(null)
+  const [slugRegisterRedirect, setSlugRegisterRedirect] = React.useState(true)
 
   // نسخه‌ها
   const [versions, setVersions] = React.useState<VersionItem[] | null>(null)
@@ -422,11 +427,15 @@ export function ArticleEditorView() {
 
   // ─── ذخیره ─────────────────────────────────────────────────────
   const save = React.useCallback(
-    async (opts?: { skipBase?: boolean }) => {
+    async (opts?: {
+      skipBase?: boolean
+      forceSlugConfirm?: boolean
+      registerRedirect?: boolean
+    }): Promise<boolean> => {
       if (title.trim().length < 3) {
         toast.error('عنوان مقاله باید حداقل ۳ نویسه باشد.')
         titleRef.current?.focus()
-        return
+        return false
       }
       setSaving(true)
       setConflictOpen(false)
@@ -445,6 +454,10 @@ export function ArticleEditorView() {
             noindex,
           }
           if (!opts?.skipBase && baseUpdatedAtRef.current) payload.baseUpdatedAt = baseUpdatedAtRef.current
+          if (opts?.forceSlugConfirm) {
+            payload.confirmSlugChange = true
+            payload.registerRedirect = !!opts.registerRedirect
+          }
           const updated = await apiPut<ArticleDetail>(`/api/articles/${editingId}`, payload)
           applyArticle(updated)
           setDirty(false)
@@ -470,18 +483,43 @@ export function ArticleEditorView() {
           setRestoreDraft(null)
           navigate(`/articles/${created.id}/edit`)
         }
+        return true
       } catch (e) {
-        if (e instanceof ApiError && e.status === 409 && (e.data as { conflict?: boolean } | undefined)?.conflict) {
-          setConflictOpen(true)
+        if (e instanceof ApiError && e.status === 409) {
+          const data = (e.data ?? {}) as {
+            conflict?: boolean
+            slugChange?: boolean
+            oldSlug?: string
+            newSlug?: string
+          }
+          if (data.conflict) {
+            setConflictOpen(true)
+          } else if (data.slugChange) {
+            // تغییر آدرس محتوای منتشرشده — گفت‌وگوی تأیید با گزینهٔ ریدایرکت باز می‌شود
+            setSlugRegisterRedirect(true)
+            setSlugGuard({
+              oldSlug: data.oldSlug ?? article?.slug ?? '',
+              newSlug: data.newSlug ?? slug.trim(),
+            })
+          } else {
+            toast.error(e.message)
+          }
         } else {
           toast.error(e instanceof Error ? e.message : 'ذخیره مقاله ناموفق بود.')
         }
+        return false
       } finally {
         setSaving(false)
       }
     },
-    [title, slug, excerpt, content, categoryId, tags, coverImageId, seoTitle, seoDescription, noindex, editingId, applyArticle, clearAutosave]
+    [title, slug, excerpt, content, categoryId, tags, coverImageId, seoTitle, seoDescription, noindex, editingId, article, applyArticle, clearAutosave]
   )
+
+  /** ذخیرهٔ مجدد همان محموله با تأیید تغییر آدرس منتشرشده و ثبت اختیاری ریدایرکت */
+  const confirmSlugSave = async (registerRedirect: boolean) => {
+    const ok = await save({ forceSlugConfirm: true, registerRedirect })
+    if (ok) setSlugGuard(null)
+  }
 
   // ─── گردش کار ──────────────────────────────────────────────────
   const doTransition = async (action: TransitionAction, note?: string) => {
@@ -1460,10 +1498,67 @@ export function ArticleEditorView() {
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault()
-                save({ skipBase: true })
+                void save({ skipBase: true })
               }}
             >
               ذخیره با نسخه من
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* گارد تغییر آدرس محتوای منتشرشده (۴۰۹ تغییر اسلاگ) */}
+      <AlertDialog
+        open={!!slugGuard}
+        onOpenChange={(o) => {
+          if (!o && !saving) setSlugGuard(null)
+        }}
+      >
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>تغییر آدرس محتوای منتشرشده</AlertDialogTitle>
+            <AlertDialogDescription>
+              آدرس این محتوای منتشرشده تغییر می‌کند. پیوند‌های قدیمی ممکن است بشکنند.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {slugGuard ? (
+            <div
+              dir="ltr"
+              className="truncate rounded-lg border bg-muted/40 px-3 py-2 text-center font-mono text-sm"
+            >
+              {slugGuard.oldSlug} <span className="text-muted-foreground" aria-hidden>→</span> {slugGuard.newSlug}
+            </div>
+          ) : null}
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <Checkbox
+              checked={slugRegisterRedirect}
+              onCheckedChange={(v) => setSlugRegisterRedirect(v === true)}
+              disabled={saving}
+              aria-label="ثبت ریدایرکت از آدرس قبلی"
+            />
+            ثبت ریدایرکت از آدرس قبلی
+          </label>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saving}>انصراف</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={saving}
+              onClick={(e) => {
+                e.preventDefault()
+                void confirmSlugSave(false)
+              }}
+            >
+              {saving ? <Loader2 className="me-1.5 h-4 w-4 animate-spin" aria-hidden /> : null}
+              ذخیره بدون ریدایرکت
+            </AlertDialogAction>
+            <AlertDialogAction
+              disabled={saving}
+              onClick={(e) => {
+                e.preventDefault()
+                void confirmSlugSave(true)
+              }}
+            >
+              {saving ? <Loader2 className="me-1.5 h-4 w-4 animate-spin" aria-hidden /> : null}
+              ذخیره با ریدایرکت
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

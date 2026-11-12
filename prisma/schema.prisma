@@ -275,12 +275,17 @@ model ContentComment {
   status         String    @default("OPEN") // OPEN | RESOLVED
   assigneeId     String?
   assigneeName   String?
+  parentId       String?   // رشته گفتگو: پاسخ به نظر والد (عمق ۱)
+  parent         ContentComment?  @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies        ContentComment[] @relation("CommentThread")
+  versionRef     String?   // اتصال اختیاری گفتگو به نسخه محتوا
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   resolvedAt     DateTime?
   resolvedByName String?
 
   @@index([entityType, entityId, status])
+  @@index([parentId])
 }
 
 // بسته انتشار (کمپین) — مجموعه مقالات که با هم آماده و منتشر می‌شوند
@@ -314,24 +319,61 @@ model BundleItem {
   @@index([bundleId])
 }
 
-// مرکز عملیات — فهرست عملیات طولانی با نتیجه و امکان تلاش مجدد
+// مرکز عملیات — عملیات طولانی با وضعیت زنده، نتیجهٔ تک‌تک موارد، لغو و تلاش مجدد
 model OperationLog {
   id            String    @id @default(cuid())
-  type          String // BUNDLE_PUBLISH | MEDIA_UPLOAD | CSV_EXPORT | ...
+  type          String // BULK_PUBLISH_ARTICLES | BULK_UNPUBLISH_ARTICLES | BUNDLE_PUBLISH | MEDIA_UPLOAD | CSV_EXPORT | OTHER
   title         String
-  status        String    @default("RUNNING") // RUNNING | SUCCESS | PARTIAL | FAILED
+  status        String    @default("QUEUED") // QUEUED | RUNNING | SUCCESS | PARTIAL | FAILED | CANCEL_REQUESTED | CANCELLED
   totalItems    Int       @default(0)
   doneItems     Int       @default(0)
   failedItems   Int       @default(0)
   initiatorId   String?
   initiatorName String    @default("سیستم")
   resultSummary String    @default("")
-  errorsJson    String    @default("[]") // JSON [{ item, reason }]
+  errorsJson    String    @default("[]") // JSON [{ item, reason }] (برای عملیات قدیمی بدون آیتم)
   relatedId     String?
+  retryOfId     String?   // شناسه عملیات اصلی در صورت «تلاش مجدد»
+  cancelRequested Boolean @default(false) // درخواست لغو؛ پردازشگر در گام بعدی متوقف می‌شود
+  startedAt     DateTime?
+  heartbeatAt   DateTime? // آخرین نشانهٔ حیات پردازشگر (تشخیص قطع‌شدن)
   createdAt     DateTime  @default(now())
   finishedAt    DateTime?
+  items         OperationItem[]
 
   @@index([createdAt])
+  @@index([status])
+}
+
+// نتیجهٔ تک‌تک موارد یک عملیات دسته‌ای
+model OperationItem {
+  id          String   @id @default(cuid())
+  operationId String
+  operation   OperationLog @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  refType     String   // ARTICLE | ...
+  refId       String
+  label       String
+  status      String   @default("PENDING") // PENDING | SUCCEEDED | FAILED | SKIPPED | CANCELLED
+  message     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([operationId, status])
+}
+
+// ریدایرکت ثبت‌شده پس از تغییر آدرس محتوای منتشرشده
+model Redirect {
+  id            String   @id @default(cuid())
+  fromPath      String   @unique // مسیر قدیمی، مانند /articles/old-slug
+  toPath        String   // مسیر جدید
+  kind          String   @default("SLUG_CHANGE") // SLUG_CHANGE | MANUAL
+  entityType    String?  // ARTICLE | PAGE
+  entityId      String?
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime @default(now())
+
+  @@index([entityType, entityId])
 }
 
 // الگوهای آماده محتوا (ایجاد نسخه مستقل از الگو)

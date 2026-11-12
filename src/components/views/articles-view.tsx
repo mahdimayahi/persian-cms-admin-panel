@@ -23,6 +23,7 @@ import {
   EmptyState,
   ErrorState,
 } from '@/components/shared/ui-bits'
+import { ImpactDialog } from '@/components/shared/impact-dialog'
 import { apiGet, apiPost, apiDelete, type PagedResponse } from '@/lib/client/api'
 import { toFa, faDate, downloadCsv } from '@/lib/client/format'
 import { useAppStore, useCan } from '@/store/app-store'
@@ -111,9 +112,8 @@ function ArticlesListPage() {
   const [bulkBusy, setBulkBusy] = React.useState(false)
   const [bulkDeleteOpen, setBulkDeleteOpen] = React.useState(false)
 
-  // حذف تک‌موردی
-  const [deleteTarget, setDeleteTarget] = React.useState<ArticleRow | null>(null)
-  const [deleting, setDeleting] = React.useState(false)
+  // حذف تک‌موردی با بررسی اثر پیش از حذف
+  const [impactTarget, setImpactTarget] = React.useState<{ type: 'article'; id: string; name: string } | null>(null)
 
   // خروجی CSV
   const [exporting, setExporting] = React.useState(false)
@@ -181,22 +181,33 @@ function ArticlesListPage() {
     }
   }
 
-  const confirmDelete = async () => {
-    if (!deleteTarget) return
-    setDeleting(true)
+  // ─── عملیات گروهی (انتشار/لغو انتشار از طریق مرکز عملیات) ──────
+  const MAX_BULK_OP_ITEMS = 100
+
+  const startBulkOp = async (type: 'BULK_PUBLISH_ARTICLES' | 'BULK_UNPUBLISH_ARTICLES') => {
+    if (selected.length > MAX_BULK_OP_ITEMS) {
+      toast.error('هر عملیات گروهی حداکثر ۱۰۰ مورد می‌تواند داشته باشد.')
+      return
+    }
+    setBulkBusy(true)
     try {
-      await apiDelete(`/api/articles/${deleteTarget.id}`)
-      toast.success('مقاله حذف شد.')
-      setDeleteTarget(null)
+      await apiPost<{ id: string }>('/api/operations', { type, articleIds: selected })
+      toast.success(
+        type === 'BULK_PUBLISH_ARTICLES'
+          ? 'عملیات انتشار گروهی در مرکز عملیات آغاز شد.'
+          : 'عملیات لغو انتشار گروهی در مرکز عملیات آغاز شد.',
+        { action: { label: 'مشاهده در مرکز عملیات', onClick: () => navigate('/operations') } }
+      )
+      setSelected([])
       load()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'حذف مقاله ناموفق بود.')
+      toast.error(e instanceof Error ? e.message : 'ثبت عملیات گروهی ناموفق بود.')
     } finally {
-      setDeleting(false)
+      setBulkBusy(false)
     }
   }
 
-  // ─── عملیات گروهی ─────────────────────────────────────────────
+  // ─── بایگانی گروهی (متوالی — به‌صورت قبلی) ───────────────────
   const runBulkTransition = async (action: TransitionAction) => {
     setBulkBusy(true)
     let okCount = 0
@@ -354,7 +365,7 @@ function ArticlesListPage() {
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    onClick={() => setDeleteTarget(row)}
+                    onClick={() => setImpactTarget({ type: 'article', id: row.id, name: row.title })}
                     className="text-destructive focus:text-destructive"
                   >
                     <Trash2 className="h-4 w-4 me-2" />
@@ -377,8 +388,11 @@ function ArticlesListPage() {
         <div className="ms-auto flex flex-wrap items-center gap-2">
           {can('articles.publish') ? (
             <>
-              <Button size="sm" onClick={() => runBulkTransition('PUBLISH')} disabled={bulkBusy}>
+              <Button size="sm" onClick={() => startBulkOp('BULK_PUBLISH_ARTICLES')} disabled={bulkBusy}>
                 انتشار
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => startBulkOp('BULK_UNPUBLISH_ARTICLES')} disabled={bulkBusy}>
+                لغو انتشار
               </Button>
               <Button size="sm" variant="outline" onClick={() => runBulkTransition('ARCHIVE')} disabled={bulkBusy}>
                 بایگانی
@@ -511,16 +525,18 @@ function ArticlesListPage() {
         bulkBar={bulkBar}
       />
 
-      {/* تأیید حذف تک‌موردی */}
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onOpenChange={(o) => !o && setDeleteTarget(null)}
-        title="حذف مقاله"
-        description={`آیا از حذف «${deleteTarget?.title ?? ''}» مطمئن هستید؟ نسخه‌ها و دیدگاه‌های آن نیز حذف می‌شوند و این عمل بازگشت‌پذیر نیست.`}
-        confirmLabel="حذف مقاله"
-        destructive
-        loading={deleting}
-        onConfirm={confirmDelete}
+      {/* بررسی اثر و حذف تک‌مقاله */}
+      <ImpactDialog
+        target={impactTarget}
+        onClose={() => setImpactTarget(null)}
+        onDelete={async () => {
+          if (!impactTarget) return
+          await apiDelete(`/api/articles/${impactTarget.id}`)
+        }}
+        onDeleted={() => {
+          toast.success('مقاله حذف شد.')
+          load()
+        }}
       />
 
       {/* تأیید حذف گروهی */}

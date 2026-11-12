@@ -1,7 +1,7 @@
 /**
  * API فایل رسانه مشخص
  * PUT    /api/media/[id] — ویرایش متن جایگزین (فقط بارگذارِ فایل یا نقش دارای media.delete.any)
- * DELETE /api/media/[id] — حذف فایل (با بررسی استفاده‌شده بودن به‌عنوان تصویر شاخص؛ ?force=true برای حذف اجباری)
+ * DELETE /api/media/[id] — حذف فایل (بدون مسیر bypass؛ اگر تصویر شاخص مقالات است با ۴۰۹ و گزارش اثر مسدود می‌شود)
  */
 import { NextRequest } from 'next/server'
 import { Prisma } from '@prisma/client'
@@ -9,6 +9,7 @@ import { db } from '@/lib/db'
 import { ApiError, ok, handleApiError, requireAuth, parseBody, vString } from '@/lib/api-utils'
 import { logActivity } from '@/lib/audit'
 import { roleHasPermission } from '@/lib/permissions'
+import { computeImpact } from '@/lib/impact'
 
 /** فیلدهای عمومی رسانه؛ فیلد data (base64) هرگز در پاسخ برنمی‌گردد */
 const mediaSelect = {
@@ -64,7 +65,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
     const user = await requireAuth()
@@ -76,15 +77,13 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       throw new ApiError(403, 'شما مجوز حذف این فایل را ندارید.')
     }
 
-    // بررسی استفاده‌شده بودن فایل به‌عنوان تصویر شاخص
-    const usedBy = await db.article.count({ where: { coverImageId: id } })
-    const force = req.nextUrl.searchParams.get('force') === 'true'
-    if (usedBy > 0 && !force) {
-      throw new ApiError(
-        409,
-        `این فایل به‌عنوان تصویر شاخص ${usedBy} مقاله استفاده شده است. برای حذف اجباری، گزینه حذف را تأیید کنید.`,
-        { usedBy }
-      )
+    // بررسی استفاده‌شده بودن فایل به‌عنوان تصویر شاخص — حذف مستقیم مجاز نیست؛ ابتدا ارجاع‌ها جایگزین شود
+    const coverCount = await db.article.count({ where: { coverImageId: id } })
+    if (coverCount > 0) {
+      throw new ApiError(409, 'این فایل در حال استفاده است و حذف مستقیم آن مجاز نیست.', {
+        blocking: true,
+        impact: await computeImpact('media', id, { id: user.id, role: user.role }),
+      })
     }
 
     await db.media.delete({ where: { id } })

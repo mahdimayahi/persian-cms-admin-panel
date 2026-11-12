@@ -1,8 +1,8 @@
 /**
  * API جزئیات مقاله
  * GET    /api/articles/[id] — مشاهده کامل مقاله (به‌همراه ۵ نسخه آخر و تعداد دیدگاه‌ها)
- * PUT    /api/articles/[id] — ویرایش مقاله (منطق مالکیت + قفل خوش‌بینانه + نسخه‌برداری خودکار)
- * DELETE /api/articles/[id] — حذف مقاله (حذف آبشاری نسخه‌ها، دیدگاه‌ها و برچسب‌ها)
+ * PUT    /api/articles/[id] — ویرایش مقاله (مالکیت + قفل خوش‌بینانه + نسخه‌برداری خودکار + گارد تغییر آدرس منتشرشده)
+ * DELETE /api/articles/[id] — حذف مقاله با پاک‌سازی وابستگی‌ها در یک تراکنش (بسته‌ها، منو، کارها، گفتگوها، علاقه‌مندی‌ها، ریدایرکت‌ها)
  */
 import { NextRequest } from 'next/server'
 import { Prisma } from '@prisma/client'
@@ -59,6 +59,8 @@ interface ArticleUpdateBody {
   ownerId?: unknown
   reviewAt?: unknown
   baseUpdatedAt?: unknown
+  confirmSlugChange?: unknown // تأیید تغییر آدرس محتوای منتشرشده
+  registerRedirect?: unknown // ثبت ریدایرکت از آدرس قبلی
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -107,6 +109,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const data: Prisma.ArticleUncheckedUpdateInput = {}
     let newTitle = article.title
 
+    // متغیرهای تغییر آدرس؛ oldSlug پیش از بازنویسی ثبت می‌شود
+    const oldSlug = article.slug
+    let slugChanged = false
+    let newSlug = ''
+
     let titleChanged = false
     if (body.title !== undefined && body.title !== null) {
       if (typeof body.title !== 'string' || body.title.trim().length < 3) {
@@ -124,6 +131,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       if (taken && taken.id !== id) {
         throw new ApiError(409, 'این آدرس کوتاه قبلاً استفاده شده است. آدرس دیگری انتخاب کنید.')
       }
+      slugChanged = slug !== article.slug
+      newSlug = slug
+
+      // گارد تغییر آدرس محتوای منتشرشده: بدون تأیید صریح مجاز نیست
+      if (slugChanged && article.status === 'PUBLISHED' && !(body.confirmSlugChange === true || body.confirmSlugChange === 'true')) {
+        throw new ApiError(409, 'تغییر آدرس محتوای منتشرشده نیاز به تأیید دارد.', {
+          slugChange: true,
+          oldSlug,
+          newSlug: slug,
+        })
+      }
+
       data.slug = slug
     }
 
@@ -198,6 +217,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const replaceTags = body.tagIds !== undefined && body.tagIds !== null
     const tagIds = replaceTags ? await validateTagIds(body.tagIds) : []
 
+    // ثبت ریدایرکت: فقط برای مقالهٔ منتشرشده با تغییر آدرس تأییدشده و درخواست صریح
+    const registerRedirect = slugChanged && article.status === 'PUBLISHED' && (body.registerRedirect === true || body.registerRedirect === 'true')
+
     // نسخه‌برداری خودکار: پیش از تغییر نسخه منتشرشده/تأییدشده، از وضعیت فعلی نسخه ثبت می‌شود
     const contentfulChange = titleChanged || excerptChanged || contentChanged
     const needsSnapshot =
@@ -224,6 +246,26 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           await tx.articleTag.createMany({ data: tagIds.map((tagId) => ({ articleId: id, tagId })) })
         }
       }
+      if (registerRedirect) {
+        // ساخت/به‌روزرسانی ریدایرکت از آدرس قبلی به آدرس جدید
+        await tx.redirect.upsert({
+          where: { fromPath: `/articles/${oldSlug}` },
+          create: {
+            fromPath: `/articles/${oldSlug}`,
+            toPath: `/articles/${newSlug}`,
+            kind: 'SLUG_CHANGE',
+            entityType: 'ARTICLE',
+            entityId: id,
+            createdById: user.id,
+            createdByName: user.name,
+          },
+          update: {
+            toPath: `/articles/${newSlug}`,
+            entityId: id,
+            entityType: 'ARTICLE',
+          },
+        })
+      }
       return tx.article.findUnique({ where: { id }, include: detailInclude })
     })
 
@@ -239,6 +281,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       details: 'ویرایش مقاله',
     })
 
+    // ثبت جداگانهٔ تغییر آدرس منتشرشده در سابقهٔ فعالیت
+    if (registerRedirect) {
+      await logActivity({
+        userId: user.id,
+        userName: user.name,
+        action: 'SLUG_CHANGE',
+        entityType: 'ARTICLE',
+        entityId: id,
+        entityTitle: newTitle,
+        details: `تغییر آدرس منتشرشده از /articles/${oldSlug} به /articles/${newSlug} و ثبت ریدایرکت`,
+      })
+    }
+
     return ok(updated)
   } catch (err) {
     return handleApiError(err)
@@ -249,7 +304,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   try {
     const { id } = await params
     const user = await requirePermission('articles.view')
-    const article = await db.article.findUnique({ where: { id }, select: { id: true, title: true, authorId: true } })
+    const article = await db.article.findUnique({
+      where: { id },
+      select: { id: true, title: true, slug: true, authorId: true, status: true },
+    })
     if (!article) throw new ApiError(404, 'مقاله یافت نشد.')
 
     // منطق مالکیت حذف
@@ -258,7 +316,28 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       throw new ApiError(403, 'شما مجوز حذف این مقاله را ندارید.')
     }
 
-    await db.article.delete({ where: { id } })
+    // پاک‌سازی وابستگی‌ها و حذف مقاله در یک تراکنش — بدون مسدودکننده و بدون دادهٔ یتیم
+    const [bundles, menuItems, tasks, comments, favorites, redirects] = await db.$transaction([
+      db.bundleItem.deleteMany({ where: { articleId: id } }),
+      db.menuItem.deleteMany({ where: { url: `/articles/${article.slug}` } }),
+      db.task.updateMany({
+        where: { relatedType: 'ARTICLE', relatedId: id, status: 'OPEN' },
+        data: { status: 'CANCELLED' },
+      }),
+      db.contentComment.deleteMany({ where: { entityType: 'ARTICLE', entityId: id } }),
+      db.favorite.deleteMany({ where: { itemType: 'ARTICLE', itemId: id } }),
+      db.redirect.deleteMany({ where: { entityType: 'ARTICLE', entityId: id } }),
+      db.article.delete({ where: { id } }),
+    ])
+
+    const cleanupSummary = [
+      `${bundles.count} جزء بسته انتشار`,
+      `${menuItems.count} آیتم منو`,
+      `${tasks.count} کار لغو شد`,
+      `${comments.count} گفتگو`,
+      `${favorites.count} علاقه‌مندی`,
+      `${redirects.count} ریدایرکت`,
+    ].join('، ')
 
     await logActivity({
       userId: user.id,
@@ -267,10 +346,20 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       entityType: 'ARTICLE',
       entityId: id,
       entityTitle: article.title,
-      details: 'حذف مقاله',
+      details: `حذف مقاله — پاک‌سازی خودکار: ${cleanupSummary}`,
     })
 
-    return ok({ ok: true })
+    return ok({
+      ok: true,
+      cleanup: {
+        bundles: bundles.count,
+        menuItems: menuItems.count,
+        tasks: tasks.count,
+        comments: comments.count,
+        favorites: favorites.count,
+        redirects: redirects.count,
+      },
+    })
   } catch (err) {
     return handleApiError(err)
   }

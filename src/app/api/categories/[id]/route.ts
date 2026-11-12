@@ -1,13 +1,15 @@
 /**
  * API دسته‌بندی مشخص
  * PUT    /api/categories/[id] — ویرایش دسته‌بندی
- * DELETE /api/categories/[id] — حذف دسته‌بندی (مقالات بدون دسته‌بندی می‌شوند: onDelete SetNull)
+ * DELETE /api/categories/[id] — حذف دسته‌بندی؛ اگر مقاله دارد با ۴۰۹ و گزارش اثر مسدود می‌شود
+ *        استراتژی‌ها: ?strategy=TRANSFER&targetCategoryId=... (انتقال مقالات) یا ?strategy=DETACH (خروج از دسته)
  */
 import { NextRequest } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { ApiError, ok, handleApiError, requirePermission, parseBody, vString, slugify } from '@/lib/api-utils'
 import { logActivity } from '@/lib/audit'
+import { computeImpact } from '@/lib/impact'
 
 /** اعتبارسنجی رنگ اختیاری (قالب هگز) */
 function validateColor(raw: unknown): string | undefined {
@@ -82,12 +84,75 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
     const user = await requirePermission('categories.manage')
     const category = await db.category.findUnique({ where: { id } })
     if (!category) throw new ApiError(404, 'دسته‌بندی یافت نشد.')
+
+    const articleCount = await db.article.count({ where: { categoryId: id } })
+
+    if (articleCount > 0) {
+      const strategy = req.nextUrl.searchParams.get('strategy')
+
+      // استراتژی انتقال: مقالات به دستهٔ دیگر منتقل و سپس دسته حذف می‌شود
+      if (strategy === 'TRANSFER') {
+        const targetCategoryId = req.nextUrl.searchParams.get('targetCategoryId')
+        if (!targetCategoryId) {
+          throw new ApiError(400, 'دستهٔ مقصد برای انتقال مقالات انتخاب نشده است.')
+        }
+        if (targetCategoryId === id) {
+          throw new ApiError(400, 'دستهٔ مقصد باید با دستهٔ حذف‌شده متفاوت باشد.')
+        }
+        const target = await db.category.findUnique({ where: { id: targetCategoryId }, select: { id: true, name: true } })
+        if (!target) throw new ApiError(400, 'دستهٔ مقصد معتبر نیست.')
+
+        await db.$transaction([
+          db.article.updateMany({ where: { categoryId: id }, data: { categoryId: target.id } }),
+          db.category.delete({ where: { id } }),
+        ])
+
+        await logActivity({
+          userId: user.id,
+          userName: user.name,
+          action: 'DELETE',
+          entityType: 'CATEGORY',
+          entityId: id,
+          entityTitle: category.name,
+          details: `حذف دسته‌بندی با انتقال ${articleCount} مقاله به دستهٔ «${target.name}»`,
+        })
+
+        return ok({ ok: true })
+      }
+
+      // استراتژی جداسازی: مقالات بدون دسته می‌شوند و سپس دسته حذف می‌شود
+      if (strategy === 'DETACH') {
+        await db.$transaction([
+          db.article.updateMany({ where: { categoryId: id }, data: { categoryId: null } }),
+          db.category.delete({ where: { id } }),
+        ])
+
+        await logActivity({
+          userId: user.id,
+          userName: user.name,
+          action: 'DELETE',
+          entityType: 'CATEGORY',
+          entityId: id,
+          entityTitle: category.name,
+          details: `حذف دسته‌بندی و خروج ${articleCount} مقاله از دسته`,
+        })
+
+        return ok({ ok: true })
+      }
+
+      // بدون استراتژی معتبر → گزارش اثر و مسدودسازی حذف
+      const impact = await computeImpact('category', id, { id: user.id, role: user.role })
+      throw new ApiError(409, 'این دسته‌بندی مقاله دارد. ابتدا مقالات را منتقل کنید یا از دسته خارج کنید.', {
+        blocking: true,
+        impact,
+      })
+    }
 
     await db.category.delete({ where: { id } })
 

@@ -116,16 +116,19 @@ export function CategoriesView() {
     }
   }
 
-  const confirmDelete = async () => {
+  /**
+   * حذف دسته‌بندی — برای دستهٔ دارای مقاله (۴۰۹ مسدودکننده)، راهبرد حذف از گفت‌وگوی
+   * بررسی اثر ارسال می‌شود: TRANSFER با targetCategoryId یا DETACH. خطاها به
+   * ImpactDialog بازمی‌گردند تا پیام سرور به‌صورت توست نمایش شود و گفت‌وگو باز بماند.
+   */
+  const confirmDelete = async (opts?: { strategy?: 'TRANSFER' | 'DETACH'; targetCategoryId?: string }) => {
     if (!deleteTarget) return
-    try {
-      await apiDelete(`/api/categories/${deleteTarget.id}`)
-      toast.success('دسته‌بندی حذف شد.')
-      setDeleteTarget(null)
-      load()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'حذف دسته‌بندی ناموفق بود.')
-    }
+    const sp = new URLSearchParams()
+    if (opts?.strategy) sp.set('strategy', opts.strategy)
+    if (opts?.strategy === 'TRANSFER' && opts.targetCategoryId) sp.set('targetCategoryId', opts.targetCategoryId)
+    const qs = sp.toString()
+    await apiDelete(`/api/categories/${deleteTarget.id}${qs ? `?${qs}` : ''}`)
+    toast.success('دسته‌بندی حذف شد.')
   }
 
   const columns: Column<Category>[] = [

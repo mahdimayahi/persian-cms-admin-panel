@@ -16,8 +16,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { PageHeader, ConfirmDialog, EmptyState, ErrorState, Pagination } from '@/components/shared/ui-bits'
-import { apiGet, apiPost, apiPut, apiDelete, ApiError, type PagedResponse } from '@/lib/client/api'
+import { PageHeader, EmptyState, ErrorState, Pagination } from '@/components/shared/ui-bits'
+import { ImpactDialog } from '@/components/shared/impact-dialog'
+import { apiGet, apiPost, apiPut, apiDelete, type PagedResponse } from '@/lib/client/api'
 import { toFa, faBytes, faDate, faDateTime } from '@/lib/client/format'
 import { useAppStore, useCan } from '@/store/app-store'
 import { mediaUrl, type MediaItem } from '@/components/shared/media-picker'
@@ -69,9 +70,9 @@ export function MediaView() {
   const [details, setDetails] = React.useState<MediaItem | null>(null)
   const [altText, setAltText] = React.useState('')
   const [savingAlt, setSavingAlt] = React.useState(false)
-  const [deleting, setDeleting] = React.useState(false)
-  const [deleteOpen, setDeleteOpen] = React.useState(false)
-  const [forceInfo, setForceInfo] = React.useState<{ count: number } | null>(null)
+
+  // بررسی اثر حذف
+  const [deleteTarget, setDeleteTarget] = React.useState<{ id: string; name: string } | null>(null)
 
   const seqRef = React.useRef(0)
 
@@ -168,8 +169,6 @@ export function MediaView() {
   const openDetails = (m: MediaItem) => {
     setDetails(m)
     setAltText(m.altText ?? '')
-    setForceInfo(null)
-    setDeleteOpen(false)
   }
 
   const canManageItem = (m: MediaItem) =>
@@ -190,26 +189,15 @@ export function MediaView() {
     }
   }
 
-  const doDelete = async (force = false) => {
-    if (!details) return
-    setDeleting(true)
-    try {
-      await apiDelete(`/api/media/${details.id}${force ? '?force=true' : ''}`)
-      toast.success('فایل حذف شد.')
-      setDetails(null)
-      setDeleteOpen(false)
-      setForceInfo(null)
-      load()
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 409) {
-        const usedBy = (e.data as { usedBy?: number } | undefined)?.usedBy ?? 0
-        setForceInfo({ count: usedBy })
-      } else {
-        toast.error(e instanceof Error ? e.message : 'حذف فایل ناموفق بود.')
-      }
-    } finally {
-      setDeleting(false)
-    }
+  /**
+   * حذف فایل بدون force — اگر تصویر شاخص مقالات باشد سرور با ۴۰۹ مسدود می‌کند؛
+   * پیام سرور توسط ImpactDialog به‌صورت توست نمایش داده می‌شود و گفت‌وگو باز می‌ماند.
+   */
+  const handleDeleteMedia = async () => {
+    if (!deleteTarget) return
+    await apiDelete(`/api/media/${deleteTarget.id}`)
+    toast.success('فایل حذف شد.')
+    setDetails(null)
   }
 
   const isImage = (m: MediaItem) => m.mimeType.startsWith('image/')
@@ -436,7 +424,11 @@ export function MediaView() {
                 </Button>
                 {can('media.delete.any') ||
                 (can('media.delete.own') && !!user && details.uploadedBy?.id === user.id) ? (
-                  <Button variant="destructive" onClick={() => setDeleteOpen(true)} className="gap-1.5">
+                  <Button
+                    variant="destructive"
+                    onClick={() => details && setDeleteTarget({ id: details.id, name: details.originalName })}
+                    className="gap-1.5"
+                  >
                     <Trash2 className="h-4 w-4" />
                     حذف
                   </Button>
@@ -447,23 +439,12 @@ export function MediaView() {
         </DialogContent>
       </Dialog>
 
-      {/* تأیید حذف (با پشتیبانی حذف اجباری) */}
-      <ConfirmDialog
-        open={deleteOpen}
-        onOpenChange={(o) => {
-          setDeleteOpen(o)
-          if (!o) setForceInfo(null)
-        }}
-        title={forceInfo ? 'فایل در حال استفاده است' : 'حذف فایل'}
-        description={
-          forceInfo
-            ? `این فایل تصویر شاخص ${toFa(forceInfo.count)} مقاله است. با حذف اجباری، تصویر از مقالات مربوطه حذف خواهد شد.`
-            : `آیا از حذف «${details?.originalName ?? ''}» مطمئن هستید؟ این عمل بازگشت‌پذیر نیست.`
-        }
-        confirmLabel={forceInfo ? 'حذف اجباری' : 'حذف فایل'}
-        destructive
-        loading={deleting}
-        onConfirm={() => doDelete(!!forceInfo)}
+      {/* بررسی اثر حذف — مسدودسازی و راه اصلاح جایگزینی در گفت‌وگو انجام می‌شود */}
+      <ImpactDialog
+        target={deleteTarget ? { type: 'media', id: deleteTarget.id, name: deleteTarget.name } : null}
+        onClose={() => setDeleteTarget(null)}
+        onDelete={handleDeleteMedia}
+        onDeleted={load}
       />
     </div>
   )
