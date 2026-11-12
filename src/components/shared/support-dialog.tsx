@@ -112,8 +112,8 @@ function detectBrowser(ua: string): string {
 // ─── ابزار پوشاندن تصویر ─────────────────────────────────────────
 type MaskRect = { x: number; y: number; w: number; h: number }
 
-const MASK_PREVIEW_COLOR = 'rgba(244, 63, 94, 0.45)' // rose-500 نیمه‌شفاف هنگام کشیدن
-const MASK_BAKE_COLOR = '#f43f5e' // rose-500 مات — پس از اعمال، پخته و غیرقابل‌برداشتن
+const MASK_PREVIEW_COLOR = 'rgba(244, 63, 94, 0.45)' // قرمز نیمه‌شفاف هنگام کشیدن
+const MASK_BAKE_COLOR = '#f43f5e' // قرمز مات — پس از اعمال، پخته و غیرقابل‌برداشتن
 
 export function SupportReportDialog({
   open,
@@ -426,7 +426,7 @@ export function SupportReportDialog({
       <DialogContent className="max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto" dir="rtl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <LifeBuoy className="h-4 w-4 text-teal-600" aria-hidden />
+            <LifeBuoy className="h-4 w-4 text-primary" aria-hidden />
             گزارش مشکل
           </DialogTitle>
           <DialogDescription>
@@ -437,17 +437,17 @@ export function SupportReportDialog({
         {result ? (
           // ─── حالت موفقیت ───────────────────────────────────────────
           <div className="space-y-4 py-2">
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40 p-4 text-center space-y-2">
-              <p className="text-sm text-emerald-800 dark:text-emerald-200">گزارش شما با موفقیت ثبت شد. کد رهگیری:</p>
-              <p className="text-2xl font-bold tracking-widest text-emerald-700 dark:text-emerald-300" dir="ltr">
+            <div className="rounded-2xl border border-success/30 bg-success/10 p-4 text-center space-y-2">
+              <p className="text-sm text-success">گزارش شما با موفقیت ثبت شد. کد رهگیری:</p>
+              <p className="text-2xl font-bold tracking-widest text-success" dir="ltr">
                 {result.code}
               </p>
               {result.deduped ? (
-                <p className="text-xs text-emerald-700/80 dark:text-emerald-400/80">
+                <p className="text-xs text-success/80">
                   گزارش مشابهی چند دقیقه پیش ثبت شده بود؛ همین کد برای آن معتبر است.
                 </p>
               ) : (
-                <p className="text-xs text-emerald-700/80 dark:text-emerald-400/80">
+                <p className="text-xs text-success/80">
                   وضعیت رسیدگی با این کد در «گزارش‌های من» قابل پیگیری است.
                 </p>
               )}

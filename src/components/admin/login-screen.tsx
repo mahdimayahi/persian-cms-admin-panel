@@ -38,9 +38,9 @@ const BRAND_FEATURES = [
 ]
 
 const BRAND_STATS = [
-  { value: '۱۵', label: 'ماژول عملیاتی' },
-  { value: '۴', label: 'سطح دسترسی' },
-  { value: '۲۴/۷', label: 'ثبت فعالیت' },
+  { value: '۲۵', label: 'ماژول عملیاتی' },
+  { value: '۴', label: 'سطح دسترسی نقش‌محور' },
+  { value: 'کامل', label: 'ثبت تاریخچه عملیات' },
 ]
 
 export function LoginScreen() {
@@ -82,18 +82,16 @@ export function LoginScreen() {
         className="relative hidden lg:flex lg:w-[46%] xl:w-[44%] flex-col justify-between overflow-hidden bg-sidebar text-sidebar-foreground p-10 xl:p-14"
         aria-label="معرفی سامانه"
       >
-        {/* لایه‌های تزئینی */}
-        <div className="absolute inset-0 bg-gradient-to-bl from-primary/25 via-transparent to-primary/10" aria-hidden />
-        <div className="absolute inset-0 pattern-grid" aria-hidden />
-        <div className="glow-emerald inset-0" aria-hidden />
+        {/* بافت ملایم ایستا */}
+        <div className="absolute inset-0 pattern-dots opacity-40" aria-hidden />
 
         {/* لوگو و نام */}
         <div className="relative z-10 flex items-center gap-3.5">
-          <div className="logo-ring animate-gradient-x h-14 w-14 rounded-2xl bg-gradient-to-br from-primary via-primary to-chart-3 text-primary-foreground flex items-center justify-center text-2xl font-bold">
+          <div className="logo-ring h-14 w-14 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center text-2xl font-bold">
             پ
           </div>
           <div>
-            <p className="text-lg font-bold tracking-tight">پنل مدیریت محتوا</p>
+            <p className="text-lg font-bold">پنل مدیریت محتوا</p>
             <p className="text-sm text-sidebar-foreground/60">سامانه عملیاتی تولید و انتشار</p>
           </div>
         </div>
@@ -102,13 +100,13 @@ export function LoginScreen() {
         <div className="relative z-10 space-y-10">
           <div className="space-y-4">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-sidebar-foreground/15 bg-sidebar-foreground/5 px-3 py-1 text-xs font-medium text-sidebar-foreground/80">
-              <Sparkles className="h-3.5 w-3.5 text-chart-2" aria-hidden />
-              نسخه جدید رابط کاربری
+              <Sparkles className="h-3.5 w-3.5 text-sidebar-primary" aria-hidden />
+              رابط کاربری یکپارچه
             </span>
-            <h1 className="text-3xl xl:text-4xl font-bold leading-[1.5] tracking-tight">
+            <h1 className="text-3xl xl:text-4xl font-bold leading-[1.5]">
               محتوای سازمانی خود را
               <br />
-              <span className="text-chart-2">یک‌جا</span> مدیریت کنید
+              <span className="text-sidebar-primary">یک‌جا</span> مدیریت کنید
             </h1>
             <p className="text-sm leading-7 text-sidebar-foreground/65 max-w-md">
               زنجیره کامل تولید، بازبینی و انتشار محتوا با کنترل دسترسی دقیق،
@@ -121,7 +119,7 @@ export function LoginScreen() {
             {BRAND_FEATURES.map((f) => (
               <li key={f.title} className="flex items-start gap-3.5">
                 <span className="mt-0.5 rounded-xl bg-sidebar-foreground/8 border border-sidebar-foreground/10 p-2.5 shrink-0">
-                  <f.icon className="h-4.5 w-4.5 text-chart-2" aria-hidden />
+                  <f.icon className="h-4.5 w-4.5 text-sidebar-primary" aria-hidden />
                 </span>
                 <div>
                   <p className="text-sm font-semibold">{f.title}</p>
@@ -139,7 +137,7 @@ export function LoginScreen() {
               key={st.label}
               className="rounded-xl border border-sidebar-foreground/10 bg-sidebar-foreground/5 px-4 py-3 text-center"
             >
-              <p className="text-xl font-bold text-chart-2 tabular-nums">{st.value}</p>
+              <p className="text-xl font-bold text-sidebar-primary tabular-nums">{st.value}</p>
               <p className="text-[11px] text-sidebar-foreground/55 mt-0.5">{st.label}</p>
             </div>
           ))}
@@ -148,19 +146,13 @@ export function LoginScreen() {
 
       {/* ── پنل فرم ورود ──────────────────────────────────────── */}
       <main className="relative flex-1 flex flex-col items-center justify-center p-4 sm:p-8">
-        {/* هاله نوری ملایم پشت فرم */}
-        <div
-          className="pointer-events-none absolute -top-24 start-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl"
-          aria-hidden
-        />
-
         {/* هدر موبایل (چون پنل برند پنهان است) */}
         <div className="lg:hidden mb-8 text-center space-y-3">
-          <div className="logo-ring animate-gradient-x mx-auto h-14 w-14 rounded-2xl bg-gradient-to-br from-primary to-chart-3 text-primary-foreground flex items-center justify-center text-2xl font-bold">
+          <div className="logo-ring mx-auto h-14 w-14 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center text-2xl font-bold">
             پ
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight">پنل مدیریت محتوا</h1>
+            <h1 className="text-xl font-bold">پنل مدیریت محتوا</h1>
             <p className="text-sm text-muted-foreground">سامانه یکپارچه تولید و انتشار محتوا</p>
           </div>
         </div>
@@ -231,7 +223,7 @@ export function LoginScreen() {
 
               <Button
                 type="submit"
-                className="w-full h-11 gap-2 rounded-xl text-sm font-semibold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/25 transition-shadow"
+                className="w-full h-11 gap-2 rounded-xl text-sm font-semibold"
                 disabled={loading}
               >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}

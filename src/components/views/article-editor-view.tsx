@@ -135,8 +135,8 @@ function editorTransitions(status: string, isOwn: boolean, can: (p: string) => b
 
 /** کلاس نشان شدت یافته‌های واژه‌نامه (الزام‌آور سرخ، هشدار کهربایی، پیشنهاد خاکستری) */
 const GLOSSARY_SEVERITY_BADGE: Record<string, string> = {
-  ENFORCING: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border-0',
-  WARNING: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-0',
+  ENFORCING: 'bg-destructive/10 text-destructive border-0',
+  WARNING: 'bg-warning/10 text-warning border-0',
   SUGGESTION: 'bg-muted text-muted-foreground border-0',
 }
 
@@ -853,7 +853,7 @@ export function ArticleEditorView() {
 
       {/* هشدار پیش‌نویس ذخیره‌شده */}
       {restoreDraft ? (
-        <Alert className="my-4 border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200 [&>svg]:text-amber-600">
+        <Alert className="my-4 border-warning/40 bg-warning/10 text-warning [&>svg]:text-warning">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>پیش‌نویس ذخیره‌شده در مرورگر یافت شد</AlertTitle>
           <AlertDescription className="flex flex-wrap items-center gap-2">
@@ -999,7 +999,7 @@ export function ArticleEditorView() {
                   )}
 
                   {article?.status === 'NEEDS_REVISION' && article.reviewNote ? (
-                    <Alert className="border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200 [&>svg]:text-amber-600">
+                    <Alert className="border-warning/40 bg-warning/10 text-warning [&>svg]:text-warning">
                       <AlertTriangle className="h-4 w-4" />
                       <AlertTitle>یادداشت بازبینی</AlertTitle>
                       <AlertDescription>{article.reviewNote}</AlertDescription>
@@ -1008,7 +1008,7 @@ export function ArticleEditorView() {
 
                   {/* راهنمای درون‌برنامه‌ای: علت عدم آمادگی برای انتشار */}
                   {publishBlockers.length > 0 && (statusInfo?.value === 'DRAFT' || statusInfo?.value === 'APPROVED') ? (
-                    <Alert className="border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200 [&>svg]:text-amber-600">
+                    <Alert className="border-warning/40 bg-warning/10 text-warning [&>svg]:text-warning">
                       <AlertTriangle className="h-4 w-4" />
                       <AlertTitle className="text-sm">برای گذر روان از گردش کار</AlertTitle>
                       <AlertDescription className="text-xs leading-5">
@@ -1136,7 +1136,7 @@ export function ArticleEditorView() {
                   </Field>
 
                   {reviewOverdue ? (
-                    <p className="text-xs font-medium text-rose-600 dark:text-rose-400">
+                    <p className="text-xs font-medium text-destructive">
                       بازبینی این محتوا از موعد گذشته است.
                     </p>
                   ) : null}
@@ -1187,7 +1187,7 @@ export function ArticleEditorView() {
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between gap-2">
                     <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-amber-500" aria-hidden />
+                      <Sparkles className="h-4 w-4 text-warning" aria-hidden />
                       بررسی واژه‌نامه برند
                     </CardTitle>
                     {glossaryStamp ? (
@@ -1551,7 +1551,7 @@ export function ArticleEditorView() {
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <TrendingUp className="h-4 w-4 text-teal-600" aria-hidden />
+                      <TrendingUp className="h-4 w-4 text-primary" aria-hidden />
                       عملکرد محتوا
                     </CardTitle>
                   </CardHeader>

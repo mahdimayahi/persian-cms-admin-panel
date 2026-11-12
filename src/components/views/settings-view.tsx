@@ -153,7 +153,7 @@ export function SettingsView() {
       ) : null}
 
       {dirty && canManage ? (
-        <Alert className="mb-4 border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200 [&>svg]:text-amber-600 dark:[&>svg]:text-amber-400">
+        <Alert className="mb-4 border-warning/30 bg-warning/10 text-warning [&>svg]:text-warning">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>تغییرات ذخیره‌نشده دارید</AlertTitle>
           <AlertDescription className="flex flex-wrap items-center justify-between gap-2">

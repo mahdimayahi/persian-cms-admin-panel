@@ -133,19 +133,19 @@ type CategoryOption = { id: string; name: string }
 const TYPE_META: Record<TemplateType, { label: string; colorClass: string; bgClass: string }> = {
   ARTICLE: {
     label: 'مقاله',
-    colorClass: 'text-amber-700 dark:text-amber-300',
-    bgClass: 'bg-amber-100 dark:bg-amber-950/60',
+    colorClass: 'text-warning',
+    bgClass: 'bg-warning/10',
   },
   LANDING: {
     label: 'صفحه فرود',
-    colorClass: 'text-violet-700 dark:text-violet-300',
-    bgClass: 'bg-violet-100 dark:bg-violet-950/60',
+    colorClass: 'text-info',
+    bgClass: 'bg-info/10',
   },
 }
 
 const ACTIVE_META = {
-  colorClass: 'text-emerald-700 dark:text-emerald-300',
-  bgClass: 'bg-emerald-100 dark:bg-emerald-950/60',
+  colorClass: 'text-success',
+  bgClass: 'bg-success/10',
 }
 
 const INACTIVE_META = {
@@ -157,8 +157,8 @@ const KIND_META: Record<StructureKind, { label: string; colorClass: string; bgCl
   FIELD: { label: 'فیلد', colorClass: 'text-muted-foreground', bgClass: 'bg-muted' },
   BLOCK: {
     label: 'بلوک',
-    colorClass: 'text-violet-700 dark:text-violet-300',
-    bgClass: 'bg-violet-100 dark:bg-violet-950/60',
+    colorClass: 'text-info',
+    bgClass: 'bg-info/10',
   },
 }
 

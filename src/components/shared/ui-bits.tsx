@@ -43,7 +43,7 @@ export function PageHeader({
       <div className="flex items-start gap-3.5">
         {icon ? (
           <span
-            className="rounded-xl bg-gradient-to-br from-primary to-chart-3 text-primary-foreground shadow-md shadow-primary/25 p-2.5 shrink-0"
+            className="rounded-xl bg-primary text-primary-foreground p-2.5 shrink-0"
             aria-hidden
           >
             {icon}
@@ -249,7 +249,7 @@ export function ConfirmDialog({
               onConfirm()
             }}
             disabled={loading}
-            className={destructive ? 'bg-destructive text-white hover:bg-destructive/90' : ''}
+            className={destructive ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin me-1.5" /> : null}
             {confirmLabel}

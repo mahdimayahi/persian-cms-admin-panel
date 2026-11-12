@@ -18,8 +18,10 @@ import {
   CopyMinus,
   BookA,
   PackageOpen,
+  History,
   Image as ImageIcon,
   LayoutList,
+  ListTree,
   ListChecks,
   LogOut,
   Menu as MenuIcon,
@@ -76,51 +78,50 @@ const MENU: NavGroup[] = [
     ],
   },
   {
-    group: 'محتوا',
+    group: 'محتوا و تعامل',
     items: [
       { label: 'مقالات', href: '/articles', perm: 'articles.view', icon: FileText },
       { label: 'دسته‌بندی‌ها', href: '/categories', perm: 'categories.manage', icon: FolderTree },
       { label: 'برچسب‌ها', href: '/tags', perm: 'tags.manage', icon: Tags },
       { label: 'دیدگاه‌ها', href: '/comments', perm: 'comments.view', icon: MessagesSquare },
+      { label: 'پاسخ‌های دریافتی', href: '/forms', perm: 'forms.view', icon: Wrench },
+      { label: 'کتابخانه فایل‌ها', href: '/media', perm: 'media.view', icon: ImageIcon },
+    ],
+  },
+  {
+    group: 'انتشار و یکپارچگی',
+    items: [
       { label: 'بسته‌های انتشار', href: '/bundles', perm: 'articles.view', icon: PackageOpen },
       { label: 'الگوهای محتوا', href: '/templates', perm: 'articles.view', icon: LayoutTemplate },
       { label: 'موارد مشابه', href: '/duplicates', perm: 'articles.view', icon: CopyMinus },
       { label: 'واژه‌نامه', href: '/glossary', perm: 'articles.view', icon: BookA },
+      { label: 'سلامت محتوا', href: '/health', perm: 'articles.view', icon: HeartPulse },
     ],
-  },
-  {
-    group: 'رسانه',
-    items: [{ label: 'کتابخانه فایل‌ها', href: '/media', perm: 'media.view', icon: ImageIcon }],
   },
   {
     group: 'ساختار سایت',
     items: [
       { label: 'صفحات', href: '/pages', perm: 'pages.view', icon: LayoutList },
-      { label: 'منوها', href: '/menus', perm: 'menus.manage', icon: ChevronDown },
+      { label: 'منوها', href: '/menus', perm: 'menus.manage', icon: ListTree },
       { label: 'نمایش سایت', href: '/site-preview', perm: null, icon: Globe, action: 'view-site' },
     ],
   },
   {
-    group: 'کاربران و دسترسی',
+    group: 'سنجش و عملیات',
     items: [
-      { label: 'کاربران', href: '/users', perm: 'users.view', icon: Users },
-      { label: 'نقش‌ها و مجوزها', href: '/roles', perm: 'roles.view', icon: ShieldCheck },
-    ],
-  },
-  {
-    group: 'فرم‌ها',
-    items: [{ label: 'پاسخ‌های دریافتی', href: '/forms', perm: 'forms.view', icon: Wrench }],
-  },
-  {
-    group: 'پایش و گزارش',
-    items: [
-      { label: 'سلامت محتوا', href: '/health', perm: 'articles.view', icon: HeartPulse },
-      { label: 'مرکز عملیات', href: '/operations', perm: null, icon: ListOrdered },
-      { label: 'گزارش‌های پشتیبانی', href: '/support', perm: 'users.manage', icon: LifeBuoy },
       { label: 'گزارش‌ها', href: '/reports', perm: 'reports.view', icon: Activity },
       { label: 'اهداف و نتایج محتوا', href: '/outcomes', perm: 'analytics.view', icon: Target },
       { label: 'آزمایش A/B', href: '/experiments', perm: 'analytics.view', icon: FlaskConical },
-      { label: 'تاریخچه فعالیت‌ها', href: '/activity', perm: 'activity.view', icon: Activity },
+      { label: 'مرکز عملیات', href: '/operations', perm: null, icon: ListOrdered },
+      { label: 'گزارش‌های پشتیبانی', href: '/support', perm: 'users.manage', icon: LifeBuoy },
+    ],
+  },
+  {
+    group: 'سیستم',
+    items: [
+      { label: 'کاربران', href: '/users', perm: 'users.view', icon: Users },
+      { label: 'نقش‌ها و مجوزها', href: '/roles', perm: 'roles.view', icon: ShieldCheck },
+      { label: 'تاریخچه فعالیت‌ها', href: '/activity', perm: 'activity.view', icon: History },
       { label: 'تنظیمات', href: '/settings', perm: 'settings.view', icon: Settings },
     ],
   },
@@ -217,10 +218,9 @@ export function SidebarContent({
   return (
     <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground">
       {/* برند */}
-      <div className="relative px-5 pt-5 pb-4 border-b border-sidebar-border overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-l from-primary/15 to-transparent" aria-hidden />
-        <div className="relative flex items-center gap-3">
-          <div className="logo-ring animate-gradient-x h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-chart-3 text-primary-foreground flex items-center justify-center text-lg font-bold shrink-0">
+      <div className="relative px-5 pt-5 pb-4 border-b border-sidebar-border">
+        <div className="flex items-center gap-3">
+          <div className="logo-ring h-10 w-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center text-lg font-bold shrink-0">
             پ
           </div>
           <div className="min-w-0">
@@ -232,18 +232,18 @@ export function SidebarContent({
 
       {/* منو */}
       <ScrollArea className="flex-1 min-h-0 px-3 py-4">
-        <nav aria-label="منوی اصلی" className="space-y-6">
+        <nav aria-label="منوی اصلی" className="space-y-5">
           {MENU.map((group, gi) => {
             const visibleItems = group.items.filter((it) => can(it.perm))
             if (visibleItems.length === 0) return null
             return (
               <div key={group.group ?? gi}>
                 {group.group ? (
-                  <p className="text-[10px] font-semibold tracking-widest text-sidebar-foreground/40 px-3 mb-2">
+                  <p className="text-[11px] font-semibold text-sidebar-foreground/45 px-3 mb-1.5">
                     {group.group}
                   </p>
                 ) : null}
-                <ul className="space-y-1">
+                <ul className="space-y-0.5">
                   {visibleItems.map((item) => {
                     const Icon = item.icon
                     const active = isActive(item.href)
@@ -252,7 +252,7 @@ export function SidebarContent({
                         {/* نشانگر فعال */}
                         {active ? (
                           <span
-                            className="absolute inset-y-1.5 start-0 w-1 rounded-full bg-gradient-to-b from-primary to-chart-3"
+                            className="absolute inset-y-1.5 start-0 w-1 rounded-full bg-sidebar-primary"
                             aria-hidden
                           />
                         ) : null}
@@ -265,26 +265,24 @@ export function SidebarContent({
                           }}
                           aria-current={active ? 'page' : undefined}
                           className={cn(
-                            'group w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm transition-all text-start',
+                            'group w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors text-start focus-visible:ring-2 focus-visible:ring-sidebar-ring outline-none',
                             active
-                              ? 'bg-sidebar-primary/20 text-sidebar-primary-foreground font-semibold shadow-sm'
+                              ? 'bg-sidebar-primary/15 text-sidebar-primary font-semibold'
                               : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-foreground/5'
                           )}
                         >
                           <Icon
                             className={cn(
-                              'h-4 w-4 shrink-0 transition-colors',
-                              active ? 'text-chart-2' : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80'
+                              'h-4 w-4 shrink-0',
+                              active ? 'text-sidebar-primary' : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80'
                             )}
                             aria-hidden
                           />
                           {item.label}
                           {item.href === '/tasks' && taskBadgeCount > 0 ? (
-                            <span className="ms-auto rounded-full bg-gradient-to-br from-destructive to-chart-4 px-1.5 min-w-4.5 text-[10px] leading-4 text-white text-center shadow-sm tabular-nums">
+                            <span className="ms-auto rounded-full bg-destructive text-destructive-foreground px-1.5 min-w-4.5 text-[10px] leading-4 text-center tabular-nums">
                               {taskBadgeCount > 9 ? '۹+' : toFa(taskBadgeCount)}
                             </span>
-                          ) : active ? (
-                            <ChevronLeft className="h-3.5 w-3.5 ms-auto text-chart-2/70" aria-hidden />
                           ) : null}
                         </button>
                       </li>
@@ -295,12 +293,12 @@ export function SidebarContent({
             )
           })}
           <div>
-            <p className="text-[10px] font-semibold tracking-widest text-sidebar-foreground/40 px-3 mb-2">حساب</p>
+            <p className="text-[11px] font-semibold text-sidebar-foreground/45 px-3 mb-1.5">حساب</p>
             <ul>
               <li className="relative">
                 {path.startsWith('/account') ? (
                   <span
-                    className="absolute inset-y-1.5 start-0 w-1 rounded-full bg-gradient-to-b from-primary to-chart-3"
+                    className="absolute inset-y-1.5 start-0 w-1 rounded-full bg-sidebar-primary"
                     aria-hidden
                   />
                 ) : null}
@@ -312,16 +310,16 @@ export function SidebarContent({
                   }}
                   aria-current={path.startsWith('/account') ? 'page' : undefined}
                   className={cn(
-                    'group w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm transition-all text-start',
+                    'group w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors text-start focus-visible:ring-2 focus-visible:ring-sidebar-ring outline-none',
                     path.startsWith('/account')
-                      ? 'bg-sidebar-primary/20 text-sidebar-primary-foreground font-semibold shadow-sm'
+                      ? 'bg-sidebar-primary/15 text-sidebar-primary font-semibold'
                       : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-foreground/5'
                   )}
                 >
                   <UserRound
                     className={cn(
                       'h-4 w-4 shrink-0',
-                      path.startsWith('/account') ? 'text-chart-2' : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80'
+                      path.startsWith('/account') ? 'text-sidebar-primary' : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80'
                     )}
                     aria-hidden
                   />
@@ -336,8 +334,8 @@ export function SidebarContent({
       {/* پانویس نوار کناری */}
       <div className="border-t border-sidebar-border px-5 py-3.5">
         <div className="flex items-center gap-2 text-[11px] text-sidebar-foreground/45">
-          <span className="h-1.5 w-1.5 rounded-full bg-chart-2 shadow-[0_0_8px_oklch(0.75_0.135_80)]" aria-hidden />
-          نسخه {toFa(2, { maximumFractionDigits: 0 })} — طراحی زمردی
+          <span className="h-1.5 w-1.5 rounded-full bg-sidebar-primary" aria-hidden />
+          نسخه {toFa(2, { maximumFractionDigits: 0 })}
         </div>
       </div>
     </div>
@@ -391,7 +389,7 @@ function NotificationsBell() {
         >
           <Bell className="h-5 w-5" />
           {unreadCount > 0 ? (
-            <span className="absolute -top-0.5 -end-0.5 h-4.5 min-w-4.5 rounded-full bg-gradient-to-br from-destructive to-chart-4 text-[10px] leading-4 text-white flex items-center justify-center px-1 shadow-sm">
+            <span className="absolute -top-0.5 -end-0.5 h-4.5 min-w-4.5 rounded-full bg-destructive text-destructive-foreground text-[10px] leading-4 flex items-center justify-center px-1">
               {unreadCount > 9 ? '۹+' : toFa(unreadCount)}
             </span>
           ) : null}
@@ -514,7 +512,7 @@ function UserMenu({ onReport }: { onReport: () => void }) {
           aria-label="منوی حساب کاربری"
         >
           <Avatar className="h-8 w-8 ring-2 ring-primary/20">
-            <AvatarFallback className="bg-gradient-to-br from-primary to-chart-3 text-primary-foreground text-xs font-bold">
+            <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">
               {initials(user.name)}
             </AvatarFallback>
           </Avatar>
@@ -602,7 +600,7 @@ export function AdminShell({
       <div className="flex flex-1 min-h-0">
         {/* نوار کناری تیره — دسکتاپ */}
         <aside className="hidden lg:block w-64 shrink-0" aria-label="نوار کناری">
-          <div className="sticky top-0 h-screen shadow-[-8px_0_32px_-16px_oklch(0.2_0.03_168/0.35)]">
+          <div className="sticky top-0 h-screen">
             <SidebarContent
               path={path}
               navigate={navigate}
@@ -707,16 +705,12 @@ export function AdminShell({
             </div>
           </header>
 
-          {/* محتوای اصلی روی پس‌زمینه ملایم */}
+          {/* محتوای اصلی */}
           <main
             id="main-content"
             className="relative flex-1 px-4 lg:px-8 py-6 pb-10 w-full max-w-7xl mx-auto"
           >
-            <div
-              className="pointer-events-none absolute top-0 inset-x-0 h-48 bg-gradient-to-b from-primary/5 to-transparent"
-              aria-hidden
-            />
-            <div className="relative">{children}</div>
+            {children}
           </main>
 
           {/* فوتر چسبان */}
@@ -724,20 +718,14 @@ export function AdminShell({
             <div className="px-4 lg:px-8 h-12 flex items-center justify-between gap-4 text-xs text-muted-foreground">
               <p className="flex items-center gap-2">
                 <span
-                  className="h-4.5 w-4.5 rounded-md bg-gradient-to-br from-primary to-chart-3 flex items-center justify-center text-primary-foreground text-[9px] font-bold"
+                  className="h-4.5 w-4.5 rounded-md bg-primary flex items-center justify-center text-primary-foreground text-[9px] font-bold"
                   aria-hidden
                 >
                   پ
                 </span>
                 پنل مدیریت محتوا — سامانه عملیاتی تولید و انتشار
               </p>
-              <p className="flex items-center gap-1.5">
-                <span className="relative flex h-2 w-2" aria-hidden>
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-40" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-                </span>
-                سرویس فعال
-              </p>
+              <p>نسخه {toFa(2, { maximumFractionDigits: 0 })}</p>
             </div>
           </footer>
         </div>

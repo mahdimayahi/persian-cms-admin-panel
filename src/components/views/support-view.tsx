@@ -386,7 +386,7 @@ export function SupportView() {
                     </span>
                     {t.operationId ? (
                       <span
-                        className="inline-flex items-center gap-1 text-xs text-violet-700 dark:text-violet-400"
+                        className="inline-flex items-center gap-1 text-xs text-info"
                         title="متصل به مرکز عملیات"
                       >
                         <Link2 className="h-3.5 w-3.5" aria-hidden />
@@ -577,8 +577,8 @@ export function SupportView() {
                         <span className="font-medium">{opTypeLabel(detail.operation.type)}</span>
                         <StatusBadge
                           label={opStatusLabel(detail.operation.status)}
-                          colorClass="text-violet-700 dark:text-violet-400"
-                          bgClass="bg-violet-100 dark:bg-violet-950/60"
+                          colorClass="text-info"
+                          bgClass="bg-info/10"
                         />
                         <span className="text-xs text-muted-foreground ms-auto" dir="ltr">
                           {detail.operation.id}

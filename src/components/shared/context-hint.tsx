@@ -37,9 +37,9 @@ export function ContextHint({
           aria-hidden
         />
         {tone === 'warning' ? (
-          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
+          <AlertTriangle className="h-4 w-4 shrink-0 text-warning" aria-hidden />
         ) : (
-          <HelpCircle className="h-4 w-4 shrink-0 text-teal-600 dark:text-teal-400" aria-hidden />
+          <HelpCircle className="h-4 w-4 shrink-0 text-primary" aria-hidden />
         )}
         <span className="text-sm font-medium">{title}</span>
       </button>

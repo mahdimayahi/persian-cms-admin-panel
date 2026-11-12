@@ -146,7 +146,7 @@ export function OnboardingChecklist({ variant = 'dashboard' }: { variant?: 'dash
       <CardHeader>
         <div className="flex items-center gap-3">
           <span
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-info/10 text-info"
             aria-hidden
           >
             <Sparkles className="h-5 w-5" />
@@ -189,11 +189,11 @@ export function OnboardingChecklist({ variant = 'dashboard' }: { variant?: 'dash
           aria-valuenow={percent}
           aria-label="پیشرفت راهنمای شروع کار"
         >
-          <div className="h-full rounded-full bg-emerald-500 transition-[width] duration-500" style={{ width: `${percent}%` }} />
+          <div className="h-full rounded-full bg-success transition-[width] duration-500" style={{ width: `${percent}%` }} />
         </div>
 
         {isCompact && dismissedAt ? (
-          <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          <p className="mt-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs leading-5 text-warning">
             راهنما مخفی شده — برای اجرای دوباره از دکمهٔ زیر استفاده کنید.
           </p>
         ) : null}
@@ -219,7 +219,7 @@ export function OnboardingChecklist({ variant = 'dashboard' }: { variant?: 'dash
                       >
                         {isDone ? (
                           <CheckCircle2
-                            className="h-5 w-5 shrink-0 fill-emerald-500 text-emerald-600 dark:text-emerald-400"
+                            className="h-5 w-5 shrink-0 fill-success text-success"
                             aria-hidden
                           />
                         ) : (
@@ -237,7 +237,7 @@ export function OnboardingChecklist({ variant = 'dashboard' }: { variant?: 'dash
                           <span className="mt-0.5 block text-xs text-muted-foreground">{step.hint}</span>
                         </span>
                         {isDone ? (
-                          <span className="shrink-0 text-xs font-medium text-emerald-600 dark:text-emerald-400">تکمیل‌شده</span>
+                          <span className="shrink-0 text-xs font-medium text-success">تکمیل‌شده</span>
                         ) : null}
                         <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground/70" aria-hidden />
                       </button>

@@ -70,8 +70,8 @@ function parseForms(json: string): string[] {
 /** ظاهر نشان شدت: پیشنهاد خاکستری، هشدار کهربایی، الزام‌آور سرخ */
 const SEVERITY_META: Record<string, { colorClass: string; bgClass: string }> = {
   SUGGESTION: { colorClass: 'text-muted-foreground', bgClass: 'bg-muted' },
-  WARNING: { colorClass: 'text-amber-700 dark:text-amber-300', bgClass: 'bg-amber-100 dark:bg-amber-950/60' },
-  ENFORCING: { colorClass: 'text-rose-700 dark:text-rose-300', bgClass: 'bg-rose-100 dark:bg-rose-950/60' },
+  WARNING: { colorClass: 'text-warning', bgClass: 'bg-warning/10' },
+  ENFORCING: { colorClass: 'text-destructive', bgClass: 'bg-destructive/10' },
 }
 
 const SCOPE_LABELS: Record<string, string> = {
@@ -380,7 +380,7 @@ export function GlossaryView() {
                       {item.preferred ? (
                         <p className="text-sm leading-6">
                           <span className="text-muted-foreground">عبارت ترجیحی: </span>
-                          <span className="font-semibold text-emerald-700 dark:text-emerald-300" dir="auto">
+                          <span className="font-semibold text-success" dir="auto">
                             «{item.preferred}»
                           </span>
                         </p>

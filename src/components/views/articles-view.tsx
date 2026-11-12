@@ -101,13 +101,13 @@ type TemplateOption = {
 const TPL_TYPE_META: Record<string, { label: string; colorClass: string; bgClass: string }> = {
   ARTICLE: {
     label: 'مقاله',
-    colorClass: 'text-amber-700 dark:text-amber-300',
-    bgClass: 'bg-amber-100 dark:bg-amber-950/60',
+    colorClass: 'text-warning',
+    bgClass: 'bg-warning/10',
   },
   LANDING: {
     label: 'صفحه فرود',
-    colorClass: 'text-violet-700 dark:text-violet-300',
-    bgClass: 'bg-violet-100 dark:bg-violet-950/60',
+    colorClass: 'text-info',
+    bgClass: 'bg-info/10',
   },
 }
 
@@ -116,8 +116,8 @@ const TPL_KIND_META: Record<string, { label: string; colorClass: string; bgClass
   FIELD: { label: 'فیلد', colorClass: 'text-muted-foreground', bgClass: 'bg-muted' },
   BLOCK: {
     label: 'بلوک',
-    colorClass: 'text-violet-700 dark:text-violet-300',
-    bgClass: 'bg-violet-100 dark:bg-violet-950/60',
+    colorClass: 'text-info',
+    bgClass: 'bg-info/10',
   },
 }
 
@@ -774,7 +774,7 @@ function ArticlesListPage() {
                 className="flex min-h-28 flex-col items-start gap-2 rounded-2xl border bg-card p-4 text-start transition-colors hover:border-primary/50 hover:bg-accent/40"
                 aria-label="ساخت با الگو — انتخاب از الگوهای آماده"
               >
-                <span className="rounded-xl bg-amber-100 p-2 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300" aria-hidden>
+                <span className="rounded-xl bg-warning/10 p-2 text-warning" aria-hidden>
                   <LayoutTemplate className="h-5 w-5" />
                 </span>
                 <span className="font-semibold">ساخت با الگو</span>
@@ -966,7 +966,7 @@ function ArticlesListPage() {
                   </div>
                 ) : null}
 
-                <Alert className="border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                <Alert className="border-warning/40 bg-warning/10 text-warning">
                   <Info className="h-4 w-4" />
                   <AlertDescription>
                     خروجی همیشه یک پیش‌نویس مستقل است؛ تأییدها منتقل نمی‌شود و تاریخ انتشار خالی است.

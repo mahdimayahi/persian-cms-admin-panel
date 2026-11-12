@@ -83,14 +83,14 @@ const SLATE_META: Omit<StatusMeta, 'label'> = {
 
 const OP_STATUS_META: Record<OpStatus, StatusMeta> = {
   QUEUED: { label: 'در صف', ...SLATE_META },
-  RUNNING: { label: 'در حال اجرا', colorClass: 'text-teal-700 dark:text-teal-300', bgClass: 'bg-teal-100 dark:bg-teal-950' },
-  SUCCESS: { label: 'موفق', colorClass: 'text-emerald-700 dark:text-emerald-300', bgClass: 'bg-emerald-100 dark:bg-emerald-950' },
-  PARTIAL: { label: 'ناقص', colorClass: 'text-amber-700 dark:text-amber-300', bgClass: 'bg-amber-100 dark:bg-amber-950' },
-  FAILED: { label: 'ناموفق', colorClass: 'text-rose-700 dark:text-rose-300', bgClass: 'bg-rose-100 dark:bg-rose-950' },
+  RUNNING: { label: 'در حال اجرا', colorClass: 'text-primary', bgClass: 'bg-primary/10' },
+  SUCCESS: { label: 'موفق', colorClass: 'text-success', bgClass: 'bg-success/10' },
+  PARTIAL: { label: 'ناقص', colorClass: 'text-warning', bgClass: 'bg-warning/10' },
+  FAILED: { label: 'ناموفق', colorClass: 'text-destructive', bgClass: 'bg-destructive/10' },
   CANCEL_REQUESTED: {
     label: 'درخواست لغو',
-    colorClass: 'text-rose-700/80 dark:text-rose-300/80',
-    bgClass: 'bg-rose-50 dark:bg-rose-950/60',
+    colorClass: 'text-destructive/80',
+    bgClass: 'bg-destructive/5',
   },
   CANCELLED: { label: 'لغوشده', ...SLATE_META },
 }
@@ -106,8 +106,8 @@ const OP_TYPE_LABELS: Record<OpType, string> = {
 
 const ITEM_STATUS_META: Record<ItemStatus, StatusMeta> = {
   PENDING: { label: 'در انتظار', ...SLATE_META },
-  SUCCEEDED: { label: 'موفق', colorClass: 'text-emerald-700 dark:text-emerald-300', bgClass: 'bg-emerald-100 dark:bg-emerald-950' },
-  FAILED: { label: 'ناموفق', colorClass: 'text-rose-700 dark:text-rose-300', bgClass: 'bg-rose-100 dark:bg-rose-950' },
+  SUCCEEDED: { label: 'موفق', colorClass: 'text-success', bgClass: 'bg-success/10' },
+  FAILED: { label: 'ناموفق', colorClass: 'text-destructive', bgClass: 'bg-destructive/10' },
   SKIPPED: { label: 'ردشده', colorClass: 'text-muted-foreground', bgClass: 'bg-muted' },
   CANCELLED: { label: 'لغوشده', ...SLATE_META },
 }
@@ -339,10 +339,10 @@ export function OperationsView() {
       {/* ── خلاصه وضعیت ─────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3.5 md:grid-cols-5">
         <OpTile label="در صف" count={counts.queued} icon={Clock} tile="bg-slate-500/10 text-slate-600 dark:text-slate-400" />
-        <OpTile label="در حال اجرا" count={counts.running} icon={Loader2} tile="bg-teal-500/10 text-teal-600 dark:text-teal-400" />
-        <OpTile label="موفق" count={counts.success} icon={CheckCircle2} tile="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" />
-        <OpTile label="ناقص" count={counts.partial} icon={AlertTriangle} tile="bg-amber-500/10 text-amber-600 dark:text-amber-500" />
-        <OpTile label="ناموفق" count={counts.failed} icon={XCircle} tile="bg-rose-500/10 text-rose-600 dark:text-rose-400" />
+        <OpTile label="در حال اجرا" count={counts.running} icon={Loader2} tile="bg-primary/10 text-primary" />
+        <OpTile label="موفق" count={counts.success} icon={CheckCircle2} tile="bg-success/10 text-success" />
+        <OpTile label="ناقص" count={counts.partial} icon={AlertTriangle} tile="bg-warning/10 text-warning" />
+        <OpTile label="ناموفق" count={counts.failed} icon={XCircle} tile="bg-destructive/10 text-destructive" />
       </div>
 
       {/* ── فهرست عملیات ────────────────────────────────────── */}
@@ -392,7 +392,7 @@ export function OperationsView() {
                         aria-label={`پیشرفت ${op.title}`}
                       >
                         <div
-                          className="h-full rounded-full bg-gradient-to-l from-primary to-chart-3 transition-[width] duration-500"
+                          className="h-full rounded-full bg-primary transition-[width] duration-500"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -401,7 +401,7 @@ export function OperationsView() {
                           {toFa(op.doneItems)} از {toFa(op.totalItems)} مورد
                         </span>
                         {op.failedItems > 0 ? (
-                          <span className="font-medium tabular-nums text-rose-600 dark:text-rose-400">
+                          <span className="font-medium tabular-nums text-destructive">
                             {toFa(op.failedItems)} ناموفق
                           </span>
                         ) : null}
@@ -436,7 +436,7 @@ export function OperationsView() {
                         size="sm"
                         onClick={() => retryOp(op)}
                         disabled={actionBusyId !== null}
-                        className="gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-500/10 hover:text-amber-800 dark:border-amber-800 dark:text-amber-300"
+                        className="gap-1.5 border-warning/30 text-warning hover:bg-warning/10 hover:text-warning"
                       >
                         {actionBusyId === op.id ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -452,7 +452,7 @@ export function OperationsView() {
                         size="sm"
                         onClick={() => cancelOp(op)}
                         disabled={actionBusyId !== null}
-                        className="gap-1.5 border-rose-300 text-destructive hover:bg-destructive/10 hover:text-destructive dark:border-rose-900"
+                        className="gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
                       >
                         {actionBusyId === op.id ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -522,7 +522,7 @@ export function OperationsView() {
                             {op.errors.map((er, idx) => (
                               <li
                                 key={`${op.id}-err-${idx}`}
-                                className="rounded-lg border border-rose-200 bg-rose-500/5 px-3 py-2 dark:border-rose-900"
+                                className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2"
                               >
                                 <p className="text-sm font-medium">{er.item}</p>
                                 <p className="mt-0.5 text-xs text-muted-foreground">{er.reason}</p>

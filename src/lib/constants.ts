@@ -5,12 +5,12 @@
 export type ArticleStatus = 'DRAFT' | 'IN_REVIEW' | 'NEEDS_REVISION' | 'APPROVED' | 'PUBLISHED' | 'ARCHIVED'
 
 export const ARTICLE_STATUSES: { value: ArticleStatus; label: string; color: string; bg: string }[] = [
-  { value: 'DRAFT', label: 'پیش‌نویس', color: 'text-slate-700 dark:text-slate-300', bg: 'bg-slate-100 dark:bg-slate-800' },
-  { value: 'IN_REVIEW', label: 'در انتظار بررسی', color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-950' },
-  { value: 'NEEDS_REVISION', label: 'نیازمند اصلاح', color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-950' },
-  { value: 'APPROVED', label: 'تأییدشده', color: 'text-teal-700 dark:text-teal-300', bg: 'bg-teal-100 dark:bg-teal-950' },
-  { value: 'PUBLISHED', label: 'منتشرشده', color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-100 dark:bg-emerald-950' },
-  { value: 'ARCHIVED', label: 'بایگانی‌شده', color: 'text-zinc-600 dark:text-zinc-400', bg: 'bg-zinc-100 dark:bg-zinc-800' },
+  { value: 'DRAFT', label: 'پیش‌نویس', color: 'text-muted-foreground', bg: 'bg-muted' },
+  { value: 'IN_REVIEW', label: 'در انتظار بررسی', color: 'text-warning', bg: 'bg-warning/10' },
+  { value: 'NEEDS_REVISION', label: 'نیازمند اصلاح', color: 'text-warning', bg: 'bg-warning/15' },
+  { value: 'APPROVED', label: 'تأییدشده', color: 'text-primary', bg: 'bg-primary/10' },
+  { value: 'PUBLISHED', label: 'منتشرشده', color: 'text-success', bg: 'bg-success/10' },
+  { value: 'ARCHIVED', label: 'بایگانی‌شده', color: 'text-muted-foreground', bg: 'bg-muted' },
 ]
 
 export function articleStatusInfo(status: string) {
@@ -20,9 +20,9 @@ export function articleStatusInfo(status: string) {
 export type CommentStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
 export const COMMENT_STATUSES: { value: CommentStatus; label: string; color: string; bg: string }[] = [
-  { value: 'PENDING', label: 'در انتظار بررسی', color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-950' },
-  { value: 'APPROVED', label: 'تأییدشده', color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-100 dark:bg-emerald-950' },
-  { value: 'REJECTED', label: 'ردشده', color: 'text-red-700 dark:text-red-300', bg: 'bg-red-100 dark:bg-red-950' },
+  { value: 'PENDING', label: 'در انتظار بررسی', color: 'text-warning', bg: 'bg-warning/10' },
+  { value: 'APPROVED', label: 'تأییدشده', color: 'text-success', bg: 'bg-success/10' },
+  { value: 'REJECTED', label: 'ردشده', color: 'text-destructive', bg: 'bg-destructive/10' },
 ]
 
 export function commentStatusInfo(status: string) {
@@ -32,10 +32,10 @@ export function commentStatusInfo(status: string) {
 export type UserStatus = 'INVITED' | 'ACTIVE' | 'SUSPENDED' | 'DISABLED'
 
 export const USER_STATUSES: { value: UserStatus; label: string; color: string; bg: string }[] = [
-  { value: 'INVITED', label: 'دعوت‌شده', color: 'text-sky-700 dark:text-sky-300', bg: 'bg-sky-100 dark:bg-sky-950' },
-  { value: 'ACTIVE', label: 'فعال', color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-100 dark:bg-emerald-950' },
-  { value: 'SUSPENDED', label: 'تعلیق‌شده', color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-950' },
-  { value: 'DISABLED', label: 'غیرفعال‌شده', color: 'text-red-700 dark:text-red-300', bg: 'bg-red-100 dark:bg-red-950' },
+  { value: 'INVITED', label: 'دعوت‌شده', color: 'text-info', bg: 'bg-info/10' },
+  { value: 'ACTIVE', label: 'فعال', color: 'text-success', bg: 'bg-success/10' },
+  { value: 'SUSPENDED', label: 'تعلیق‌شده', color: 'text-warning', bg: 'bg-warning/10' },
+  { value: 'DISABLED', label: 'غیرفعال‌شده', color: 'text-destructive', bg: 'bg-destructive/10' },
 ]
 
 export function userStatusInfo(status: string) {
@@ -43,9 +43,9 @@ export function userStatusInfo(status: string) {
 }
 
 export const FORM_STATUSES: { value: 'NEW' | 'READ' | 'ARCHIVED'; label: string; color: string; bg: string }[] = [
-  { value: 'NEW', label: 'جدید', color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-100 dark:bg-emerald-950' },
-  { value: 'READ', label: 'خوانده‌شده', color: 'text-slate-700 dark:text-slate-300', bg: 'bg-slate-100 dark:bg-slate-800' },
-  { value: 'ARCHIVED', label: 'بایگانی', color: 'text-zinc-600 dark:text-zinc-400', bg: 'bg-zinc-100 dark:bg-zinc-800' },
+  { value: 'NEW', label: 'جدید', color: 'text-success', bg: 'bg-success/10' },
+  { value: 'READ', label: 'خوانده‌شده', color: 'text-muted-foreground', bg: 'bg-muted' },
+  { value: 'ARCHIVED', label: 'بایگانی', color: 'text-muted-foreground', bg: 'bg-muted' },
 ]
 
 export function formStatusInfo(status: string) {

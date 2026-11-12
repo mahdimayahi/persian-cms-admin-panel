@@ -87,16 +87,16 @@ const ACTION_ICONS: Record<string, React.ElementType> = {
   MODERATE: MessagesSquare,
 }
 
-/* رنگ کاشی هر شاخص — پالت زمردی/کهربایی/فیروزه‌ای/گلگون */
+/* کاشی هر شاخص — از توکن‌های معنایی؛ در هر دو تم سازگار */
 const KPI_TILES = [
-  'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-  'bg-amber-500/10 text-amber-600 dark:text-amber-500',
-  'bg-teal-500/10 text-teal-600 dark:text-teal-400',
-  'bg-rose-500/10 text-rose-600 dark:text-rose-400',
-  'bg-lime-500/10 text-lime-600 dark:text-lime-500',
-  'bg-violet-500/10 text-violet-600 dark:text-violet-400',
-  'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400',
-  'bg-orange-500/10 text-orange-600 dark:text-orange-500',
+  'bg-primary/10 text-primary',
+  'bg-success/10 text-success',
+  'bg-info/10 text-info',
+  'bg-warning/10 text-warning',
+  'bg-success/10 text-success',
+  'bg-primary/10 text-primary',
+  'bg-info/10 text-info',
+  'bg-warning/10 text-warning',
 ]
 
 function KpiCard({
@@ -186,25 +186,23 @@ export function DashboardView() {
 
   return (
     <div className="space-y-6">
-      {/* ── بنر خوش‌آمد گرادیانی ─────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-2xl bg-sidebar text-sidebar-foreground p-6 sm:p-7 shadow-md">
-        <div className="absolute inset-0 bg-gradient-to-bl from-primary/30 via-transparent to-chart-3/15" aria-hidden />
-        <div className="absolute inset-0 pattern-grid" aria-hidden />
-        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* ── خوش‌آمد کوتاه با خلاصهٔ کارهای واقعی ──────────────────── */}
+      <div className="rounded-2xl bg-sidebar text-sidebar-foreground p-6 sm:p-7">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <p className="text-xs text-sidebar-foreground/60 mb-1.5">{faDateTime(data.generatedAt)}</p>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-bold">
               {user?.name} عزیز، خوش آمدید
             </h1>
-            <p className="text-sm text-sidebar-foreground/65 mt-1.5">
+            <p className="text-sm text-sidebar-foreground/70 mt-1.5">
               {buildTaskSentence(data.taskCounts)}
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
             <Button
               size="sm"
               onClick={() => navigate('/tasks')}
-              className="gap-1.5 rounded-xl shadow-md shadow-primary/30 bg-primary hover:bg-primary/90"
+              className="gap-1.5 rounded-lg"
             >
               <ListChecks className="h-4 w-4" />
               مرکز کارهای من
@@ -213,7 +211,7 @@ export function DashboardView() {
               size="sm"
               onClick={() => navigate('/articles/new')}
               variant="outline"
-              className="gap-1.5 rounded-xl border-sidebar-foreground/20 bg-sidebar-foreground/5 text-sidebar-foreground hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground"
+              className="gap-1.5 rounded-lg border-sidebar-foreground/20 bg-sidebar-foreground/5 text-sidebar-foreground hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground"
             >
               <Plus className="h-4 w-4" />
               مقاله جدید
@@ -223,7 +221,7 @@ export function DashboardView() {
               variant="outline"
               onClick={load}
               disabled={loading}
-              className="gap-1.5 rounded-xl border-sidebar-foreground/20 bg-sidebar-foreground/5 text-sidebar-foreground hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground"
+              className="gap-1.5 rounded-lg border-sidebar-foreground/20 bg-sidebar-foreground/5 text-sidebar-foreground hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
               به‌روزرسانی
@@ -294,7 +292,7 @@ export function DashboardView() {
         <Card className="rounded-2xl shadow-xs">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <span className="rounded-lg bg-amber-500/10 p-1.5 text-amber-600 dark:text-amber-500" aria-hidden>
+              <span className="rounded-lg bg-warning/10 p-1.5 text-warning" aria-hidden>
                 <Clock className="h-4 w-4" />
               </span>
               {hasReview ? 'در انتظار بررسی شما' : 'پیش‌نویس‌های من'}
@@ -353,7 +351,7 @@ export function DashboardView() {
         <CardHeader className="flex-row items-center justify-between">
           <div>
             <CardTitle className="text-base flex items-center gap-2">
-              <span className="rounded-lg bg-violet-500/10 p-1.5 text-violet-600 dark:text-violet-400" aria-hidden>
+              <span className="rounded-lg bg-info/10 p-1.5 text-info" aria-hidden>
                 <Bell className="h-4 w-4" />
               </span>
               فعالیت‌های اخیر

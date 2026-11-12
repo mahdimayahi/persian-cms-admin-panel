@@ -139,8 +139,8 @@ const PRIORITY_LABELS: Record<TaskPriority, string> = {
 }
 
 const PRIORITY_DOT: Record<TaskPriority, string> = {
-  HIGH: 'bg-rose-500',
-  MEDIUM: 'bg-amber-500',
+  HIGH: 'bg-destructive',
+  MEDIUM: 'bg-warning',
   LOW: 'bg-slate-400',
 }
 
@@ -204,7 +204,7 @@ export function TasksView() {
           title: t.title,
           link: t.link,
           taskId: t.id,
-          badge: { label: 'از موعد گذشته', colorClass: 'text-rose-700 dark:text-rose-400', bgClass: 'bg-rose-100 dark:bg-rose-950/60' },
+          badge: { label: 'از موعد گذشته', colorClass: 'text-destructive', bgClass: 'bg-destructive/10' },
         })
       }
     }
@@ -214,7 +214,7 @@ export function TasksView() {
         title: a.title,
         link: editorLink(a.id),
         taskId: null,
-        badge: { label: 'مالکیت محتوا', colorClass: 'text-amber-700 dark:text-amber-400', bgClass: 'bg-amber-100 dark:bg-amber-950/60' },
+        badge: { label: 'مالکیت محتوا', colorClass: 'text-warning', bgClass: 'bg-warning/10' },
       })
     }
     if (data.canReview) {
@@ -224,7 +224,7 @@ export function TasksView() {
           title: a.title,
           link: editorLink(a.id),
           taskId: null,
-          badge: { label: 'صف بازبینی', colorClass: 'text-teal-700 dark:text-teal-400', bgClass: 'bg-teal-100 dark:bg-teal-950/60' },
+          badge: { label: 'صف بازبینی', colorClass: 'text-primary', bgClass: 'bg-primary/10' },
         })
       }
     }
@@ -234,7 +234,7 @@ export function TasksView() {
         title: a.title,
         link: editorLink(a.id),
         taskId: null,
-        badge: { label: 'نیازمند اصلاح', colorClass: 'text-orange-700 dark:text-orange-400', bgClass: 'bg-orange-100 dark:bg-orange-950/60' },
+        badge: { label: 'نیازمند اصلاح', colorClass: 'text-warning', bgClass: 'bg-warning/10' },
       })
     }
     return items.slice(0, 8)
@@ -347,10 +347,10 @@ export function TasksView() {
       {/* ── بنر خلاصه وضعیت ─────────────────────────────────── */}
       <div className="relative overflow-hidden rounded-2xl bg-sidebar text-sidebar-foreground p-6 shadow-md">
         <div className="absolute inset-0 pattern-grid" aria-hidden />
-        <div className="absolute inset-0 bg-gradient-to-bl from-primary/30 via-transparent to-chart-3/15" aria-hidden />
+        <div className="absolute inset-0 bg-primary/10" aria-hidden />
         <div className="relative z-10 flex items-center gap-3">
           {calm ? (
-            <span className="rounded-xl bg-emerald-500/15 p-2.5 text-emerald-400 shrink-0" aria-hidden>
+            <span className="rounded-xl bg-success/15 p-2.5 text-success shrink-0" aria-hidden>
               <CheckCircle2 className="h-6 w-6" />
             </span>
           ) : null}
@@ -364,7 +364,7 @@ export function TasksView() {
       <Card className="rounded-2xl shadow-xs">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <span className="rounded-lg bg-amber-500/10 p-1.5 text-amber-600 dark:text-amber-500" aria-hidden>
+            <span className="rounded-lg bg-warning/10 p-1.5 text-warning" aria-hidden>
               <Flame className="h-4 w-4" />
             </span>
             اولویت‌های امروز
@@ -404,7 +404,7 @@ export function TasksView() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="gap-1 shrink-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+                    className="gap-1 shrink-0 text-success hover:text-success hover:bg-success/10"
                     disabled={busyTaskId === item.taskId}
                     onClick={() => completeTask(item.taskId as string)}
                     aria-label={`ثبت کار «${item.title}» به‌عنوان انجام‌شده`}
@@ -426,7 +426,7 @@ export function TasksView() {
           <Card className="rounded-2xl shadow-xs">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <span className="rounded-lg bg-teal-500/10 p-1.5 text-teal-600 dark:text-teal-400" aria-hidden>
+                <span className="rounded-lg bg-primary/10 p-1.5 text-primary" aria-hidden>
                   <Eye className="h-4 w-4" />
                 </span>
                 در انتظار تأیید شما
@@ -462,7 +462,7 @@ export function TasksView() {
         <Card className="rounded-2xl shadow-xs">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <span className="rounded-lg bg-rose-500/10 p-1.5 text-rose-600 dark:text-rose-400" aria-hidden>
+              <span className="rounded-lg bg-destructive/10 p-1.5 text-destructive" aria-hidden>
                 <AlarmClock className="h-4 w-4" />
               </span>
               بازبینی از موعد گذشته
@@ -482,7 +482,7 @@ export function TasksView() {
                 >
                   <p className="text-sm font-medium line-clamp-1">{a.title}</p>
                   <div className="flex items-center justify-between mt-1.5">
-                    <span className="text-xs text-rose-600 dark:text-rose-400 font-medium">
+                    <span className="text-xs text-destructive font-medium">
                       موعد: {faDate(a.reviewAt)}
                     </span>
                     <ArrowLeft className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary group-hover:-translate-x-0.5 transition" aria-hidden />
@@ -497,7 +497,7 @@ export function TasksView() {
         <Card className="rounded-2xl shadow-xs">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <span className="rounded-lg bg-violet-500/10 p-1.5 text-violet-600 dark:text-violet-400" aria-hidden>
+              <span className="rounded-lg bg-info/10 p-1.5 text-info" aria-hidden>
                 <ListTodo className="h-4 w-4" />
               </span>
               کارهای واگذارشده به من
@@ -546,7 +546,7 @@ export function TasksView() {
                         ) : null}
                         <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs text-muted-foreground">
                           {t.dueDate ? (
-                            <span className={cn(overdue && 'text-rose-600 dark:text-rose-400 font-medium')}>
+                            <span className={cn(overdue && 'text-destructive font-medium')}>
                               موعد: {faDate(t.dueDate)}
                             </span>
                           ) : null}
@@ -556,7 +556,7 @@ export function TasksView() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="gap-1 shrink-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+                        className="gap-1 shrink-0 text-success hover:text-success hover:bg-success/10"
                         disabled={busyTaskId === t.id}
                         onClick={() => completeTask(t.id)}
                         aria-label={`ثبت کار «${t.title}» به‌عنوان انجام‌شده`}
@@ -576,7 +576,7 @@ export function TasksView() {
         <Card className="rounded-2xl shadow-xs">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <span className="rounded-lg bg-orange-500/10 p-1.5 text-orange-600 dark:text-orange-500" aria-hidden>
+              <span className="rounded-lg bg-warning/10 p-1.5 text-warning" aria-hidden>
                 <FileWarning className="h-4 w-4" />
               </span>
               نیازمند اصلاح
@@ -596,7 +596,7 @@ export function TasksView() {
                 >
                   <p className="text-sm font-medium line-clamp-1">{a.title}</p>
                   {a.reviewNote ? (
-                    <p className="text-xs text-orange-700 dark:text-orange-400 bg-orange-500/5 rounded-lg px-2.5 py-1.5 mt-1.5 line-clamp-2 leading-5">
+                    <p className="text-xs text-warning bg-warning/5 rounded-lg px-2.5 py-1.5 mt-1.5 line-clamp-2 leading-5">
                       {a.reviewNote}
                     </p>
                   ) : (
@@ -617,7 +617,7 @@ export function TasksView() {
           <Card className="rounded-2xl shadow-xs card-accent-top">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <span className="rounded-lg bg-cyan-500/10 p-1.5 text-cyan-600 dark:text-cyan-400" aria-hidden>
+                <span className="rounded-lg bg-info/10 p-1.5 text-info" aria-hidden>
                   <History className="h-4 w-4" />
                 </span>
                 ادامه آخرین کار

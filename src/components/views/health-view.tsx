@@ -75,15 +75,15 @@ const SEVERITY_ORDER: HealthSeverity[] = ['HIGH', 'MEDIUM', 'LOW']
 
 /** برچسب و رنگ نشان هر سطح اهمیت */
 const SEVERITY_META: Record<HealthSeverity, { label: string; colorClass: string; bgClass: string }> = {
-  HIGH: { label: 'بحرانی', colorClass: 'text-rose-700 dark:text-rose-300', bgClass: 'bg-rose-100 dark:bg-rose-950' },
-  MEDIUM: { label: 'نیازمند توجه', colorClass: 'text-amber-700 dark:text-amber-300', bgClass: 'bg-amber-100 dark:bg-amber-950' },
+  HIGH: { label: 'بحرانی', colorClass: 'text-destructive', bgClass: 'bg-destructive/10' },
+  MEDIUM: { label: 'نیازمند توجه', colorClass: 'text-warning', bgClass: 'bg-warning/10' },
   LOW: { label: 'کم‌اهمیت', colorClass: 'text-slate-700 dark:text-slate-300', bgClass: 'bg-slate-100 dark:bg-slate-950' },
 }
 
 /** کاشی‌های شمارش سطح اهمیت — به سبک KpiCard داشبورد */
 const SEVERITY_TILES: { severity: HealthSeverity; label: string; icon: React.ElementType; tile: string }[] = [
-  { severity: 'HIGH', label: 'بحرانی', icon: AlertOctagon, tile: 'bg-rose-500/10 text-rose-600 dark:text-rose-400' },
-  { severity: 'MEDIUM', label: 'نیازمند توجه', icon: AlertTriangle, tile: 'bg-amber-500/10 text-amber-600 dark:text-amber-500' },
+  { severity: 'HIGH', label: 'بحرانی', icon: AlertOctagon, tile: 'bg-destructive/10 text-destructive' },
+  { severity: 'MEDIUM', label: 'نیازمند توجه', icon: AlertTriangle, tile: 'bg-warning/10 text-warning' },
   { severity: 'LOW', label: 'کم‌اهمیت', icon: Info, tile: 'bg-slate-500/10 text-slate-600 dark:text-slate-400' },
 ]
 
@@ -284,7 +284,7 @@ export function HealthView() {
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground mt-1 leading-6">{issue.detail}</p>
-                    <p className="text-xs mt-2 flex items-start gap-1.5 text-emerald-700 dark:text-emerald-400 leading-5">
+                    <p className="text-xs mt-2 flex items-start gap-1.5 text-success leading-5">
                       <Wrench className="h-3.5 w-3.5 mt-0.5 shrink-0" aria-hidden />
                       <span>
                         <span className="font-medium">راه اصلاح:</span> {issue.fix}

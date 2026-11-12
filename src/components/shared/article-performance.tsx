@@ -105,8 +105,8 @@ export function ArticlePerformancePanel({ articleId }: { articleId: string }) {
               </CardTitle>
               <StatusBadge
                 label={p.goal.status === 'ACTIVE' ? 'فعال' : 'موقتاً متوقف'}
-                colorClass={p.goal.status === 'ACTIVE' ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}
-                bgClass={p.goal.status === 'ACTIVE' ? 'bg-emerald-100 dark:bg-emerald-950' : 'bg-amber-100 dark:bg-amber-950'}
+                colorClass={p.goal.status === 'ACTIVE' ? 'text-success' : 'text-warning'}
+                bgClass={p.goal.status === 'ACTIVE' ? 'bg-success/10' : 'bg-warning/10'}
               />
             </div>
             <CardDescription>بازهٔ ۷ روز اخیر — منطقهٔ زمانی {p.timezone} — شاخص: {p.goal.metricLabel}</CardDescription>

@@ -102,18 +102,18 @@ export function SitePreviewDialog({
         {/* نوار بالای پنجره — شبیه مرورگر */}
         <div className="flex items-center gap-3 border-b bg-muted/60 px-4 py-2.5 shrink-0">
           <div className="flex items-center gap-1.5" aria-hidden>
-            <span className="h-2.5 w-2.5 rounded-full bg-rose-400" />
-            <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+            <span className="h-2.5 w-2.5 rounded-full bg-destructive" />
+            <span className="h-2.5 w-2.5 rounded-full bg-warning" />
+            <span className="h-2.5 w-2.5 rounded-full bg-success" />
           </div>
           <div
             className="flex-1 max-w-md mx-auto flex items-center gap-1.5 rounded-full bg-background border px-3 py-1 text-xs text-muted-foreground font-mono"
             dir="ltr"
           >
-            <Lock className="h-3 w-3 shrink-0 text-emerald-600" aria-hidden />
+            <Lock className="h-3 w-3 shrink-0 text-success" aria-hidden />
             <span className="truncate">{fakeDomain(siteName)}</span>
           </div>
-          <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-emerald-100 dark:bg-emerald-950 px-2.5 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+          <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-success/10 px-2.5 py-1 text-[11px] font-medium text-success">
             <Globe className="h-3 w-3" aria-hidden />
             پیش‌نمایش زنده
           </span>
@@ -175,7 +175,7 @@ function SitePage({ data }: { data: SitePreviewData }) {
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-4 px-6 h-14">
           <div className="flex items-center gap-2.5 min-w-0">
             <span
-              className="h-8 w-8 shrink-0 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-500 text-white flex items-center justify-center text-sm font-bold"
+              className="h-8 w-8 shrink-0 rounded-xl bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold"
               aria-hidden
             >
               پ
@@ -199,8 +199,8 @@ function SitePage({ data }: { data: SitePreviewData }) {
 
       {/* هشدار حالت نگه‌داری */}
       {settings.maintenanceMode ? (
-        <div className="bg-amber-50 border-b border-amber-200 px-6 py-2.5" role="status">
-          <p className="max-w-5xl mx-auto flex items-center gap-2 text-xs text-amber-800">
+        <div className="bg-warning/10 border-b border-warning/40 px-6 py-2.5" role="status">
+          <p className="max-w-5xl mx-auto flex items-center gap-2 text-xs text-warning">
             <Wrench className="h-3.5 w-3.5 shrink-0" aria-hidden />
             سایت در حالت نگه‌داری است؛ بازدیدکنندگان در این حالت پیام نگه‌داری می‌بینند و به محتوا دسترسی ندارند.
           </p>
@@ -209,7 +209,7 @@ function SitePage({ data }: { data: SitePreviewData }) {
 
       <main className="flex-1">
         {/* قهرمان */}
-        <section className="bg-gradient-to-b from-emerald-50 to-white border-b border-slate-200">
+        <section className="bg-success/10 border-b border-slate-200">
           <div className="max-w-5xl mx-auto px-6 py-12 text-center">
             <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 leading-tight">
               {settings.siteName}
@@ -220,7 +220,7 @@ function SitePage({ data }: { data: SitePreviewData }) {
               </p>
             ) : null}
             <p className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-white border border-slate-200 px-3.5 py-1.5 text-xs text-slate-600 shadow-xs">
-              <Newspaper className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
+              <Newspaper className="h-3.5 w-3.5 text-success" aria-hidden />
               {toFa(articles.length)} مقاله منتشرشده
             </p>
           </div>
@@ -254,14 +254,14 @@ function SitePage({ data }: { data: SitePreviewData }) {
                       />
                     ) : (
                       <div
-                        className="h-full w-full bg-gradient-to-br from-emerald-100 to-teal-50 flex items-center justify-center"
+                        className="h-full w-full bg-success/10 flex items-center justify-center"
                         aria-hidden
                       >
-                        <Newspaper className="h-8 w-8 text-emerald-300" />
+                        <Newspaper className="h-8 w-8 text-success/60" />
                       </div>
                     )}
                     {a.categoryName ? (
-                      <span className="absolute top-2.5 start-2.5 rounded-full bg-white/95 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 shadow-xs">
+                      <span className="absolute top-2.5 start-2.5 rounded-full bg-white/95 px-2.5 py-0.5 text-[11px] font-medium text-success shadow-xs">
                         {a.categoryName}
                       </span>
                     ) : null}
@@ -294,7 +294,7 @@ function SitePage({ data }: { data: SitePreviewData }) {
         <div className="max-w-5xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
           <div className="flex items-center gap-2.5">
             <span
-              className="h-8 w-8 shrink-0 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-500 text-white flex items-center justify-center text-sm font-bold"
+              className="h-8 w-8 shrink-0 rounded-xl bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold"
               aria-hidden
             >
               پ

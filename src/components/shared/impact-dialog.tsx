@@ -103,14 +103,14 @@ const SEVERITY_BANNER: Record<
     text: 'حذف با پاک‌سازی خودکار وابستگی‌ها انجام می‌شود؛ موارد فهرست‌شده از بین می‌روند.',
     icon: AlertTriangle,
     className:
-      'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300',
+      'border-warning/40 bg-warning/10 text-warning',
   },
   BLOCKING: {
     label: 'مسدودکننده',
     text: 'حذف تا رفع وابستگی مسدود است.',
     icon: ShieldAlert,
     className:
-      'border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300',
+      'border-destructive/40 bg-destructive/10 text-destructive',
   },
 }
 
@@ -314,7 +314,7 @@ export function ImpactDialog({
         ) : null}
 
         {!loading && !error && report && report.groups.length === 0 ? (
-          <div className="flex items-start gap-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-700 dark:text-emerald-400">
+          <div className="flex items-start gap-2.5 rounded-xl border border-success/30 bg-success/10 p-3 text-sm text-success">
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
             <span>هیچ وابستگی‌ای پیدا نشد — حذف ایمن است.</span>
           </div>
@@ -343,7 +343,7 @@ export function ImpactDialog({
                           {it.published ? (
                             <Badge
                               variant="outline"
-                              className="border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                              className="border-success/40 bg-success/10 text-success"
                             >
                               منتشرشده
                             </Badge>
@@ -381,11 +381,11 @@ export function ImpactDialog({
         {/* راه اصلاح — فقط وقتی حذف مسدود است */}
         {!loading && !error && report && !report.canDelete ? (
           <div
-            className="rounded-xl border border-rose-500/40 bg-rose-500/5 p-3"
+            className="rounded-xl border border-destructive/40 bg-destructive/5 p-3"
             role="region"
             aria-label="راه اصلاح برای حذف"
           >
-            <p className="flex items-center gap-1.5 text-sm font-medium text-rose-700 dark:text-rose-400">
+            <p className="flex items-center gap-1.5 text-sm font-medium text-destructive">
               <Wrench className="h-4 w-4 shrink-0" aria-hidden />
               راه اصلاح
             </p>
@@ -500,7 +500,7 @@ export function ImpactDialog({
           <AlertDialogCancel disabled={deleting || replacing}>انصراف</AlertDialogCancel>
           {report && !report.canDelete && report.type === 'category' ? (
             <AlertDialogAction
-              className="bg-destructive text-white hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={deleting || (strategy === 'TRANSFER' && !targetCategoryId)}
               onClick={(e) => {
                 e.preventDefault()
@@ -516,7 +516,7 @@ export function ImpactDialog({
             </AlertDialogAction>
           ) : (
             <AlertDialogAction
-              className="bg-destructive text-white hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={deleting || loading || !!error || !report?.canDelete}
               onClick={(e) => {
                 e.preventDefault()

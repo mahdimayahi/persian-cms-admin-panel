@@ -227,7 +227,7 @@ export function ReportsView() {
 
       <div className="grid lg:grid-cols-2 gap-4">
         {/* مقالات به تفکیک وضعیت */}
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle className="text-base">مقالات به تفکیک وضعیت</CardTitle>
             <CardDescription>مجموع {toFa(totalArticles)} مقاله در گردش کار محتوا</CardDescription>
@@ -247,7 +247,7 @@ export function ReportsView() {
         </Card>
 
         {/* مقالات به تفکیک دسته‌بندی */}
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle className="text-base">مقالات به تفکیک دسته‌بندی</CardTitle>
             <CardDescription>توزیع محتوا میان دسته‌بندی‌ها</CardDescription>
@@ -268,7 +268,7 @@ export function ReportsView() {
 
       <div className="grid lg:grid-cols-2 gap-4">
         {/* پربازدیدترین مقالات */}
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle className="text-base">پربازدیدترین مقالات</CardTitle>
             <CardDescription>۵ مقاله با بیشترین بازدید</CardDescription>
@@ -310,7 +310,7 @@ export function ReportsView() {
 
         <div className="grid sm:grid-cols-2 gap-4">
           {/* دیدگاه‌ها */}
-          <Card>
+          <Card className="min-w-0">
             <CardHeader>
               <CardTitle className="text-base">دیدگاه‌ها</CardTitle>
               <CardDescription>به تفکیک وضعیت بازبینی</CardDescription>
@@ -327,7 +327,7 @@ export function ReportsView() {
           </Card>
 
           {/* پاسخ‌های فرم */}
-          <Card>
+          <Card className="min-w-0">
             <CardHeader>
               <CardTitle className="text-base">پاسخ‌های فرم</CardTitle>
               <CardDescription>به تفکیک وضعیت پیگیری</CardDescription>

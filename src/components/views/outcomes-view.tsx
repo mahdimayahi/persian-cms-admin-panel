@@ -164,8 +164,8 @@ const SUCCESS_EVENT_OPTIONS = [
 ]
 
 const GOAL_STATUS_INFO: Record<string, { label: string; color: string; bg: string }> = {
-  ACTIVE: { label: 'فعال', color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-100 dark:bg-emerald-950' },
-  PAUSED: { label: 'موقتاً متوقف', color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-950' },
+  ACTIVE: { label: 'فعال', color: 'text-success', bg: 'bg-success/10' },
+  PAUSED: { label: 'موقتاً متوقف', color: 'text-warning', bg: 'bg-warning/10' },
   ARCHIVED: { label: 'بایگانی‌شده', color: 'text-zinc-600 dark:text-zinc-400', bg: 'bg-zinc-100 dark:bg-zinc-800' },
 }
 
@@ -736,7 +736,7 @@ function GoalDetail({ goalId, canManage, onChanged }: { goalId: string; canManag
               <ul className="max-h-48 overflow-y-auto space-y-2 pe-1">
                 {publishHistory.map((h, i) => (
                   <li key={`${h.kind}-${h.at}-${i}`} className="flex items-start gap-2 text-sm">
-                    <span className={cn('mt-1 h-2 w-2 rounded-full shrink-0', h.kind === 'PUBLISH' ? 'bg-emerald-500' : 'bg-chart-1')} aria-hidden />
+                    <span className={cn('mt-1 h-2 w-2 rounded-full shrink-0', h.kind === 'PUBLISH' ? 'bg-success' : 'bg-chart-1')} aria-hidden />
                     <span className="min-w-0">
                       <span className="block leading-6">{h.label}</span>
                       <span className="text-xs text-muted-foreground">

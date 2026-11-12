@@ -100,7 +100,7 @@ export function RolesView() {
                           ROLE_PERMISSIONS[r].includes(p) ? (
                             <TableCell key={r} className="text-center">
                               <Check
-                                className="h-4 w-4 text-emerald-600 mx-auto"
+                                className="h-4 w-4 text-success mx-auto"
                                 aria-label="دارد"
                                 role="img"
                               />

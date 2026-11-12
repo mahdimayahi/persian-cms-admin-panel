@@ -254,7 +254,7 @@ export function AccountView() {
                             {s.userAgent ?? 'دستگاه ناشناس'}
                           </p>
                           {s.isCurrent ? (
-                            <Badge className="bg-emerald-100 text-emerald-800 border-transparent dark:bg-emerald-950 dark:text-emerald-300">
+                            <Badge className="bg-success/10 text-success border-transparent">
                               نشست فعلی
                             </Badge>
                           ) : null}
@@ -335,7 +335,7 @@ function SupportTicketsSection() {
     <Card className="max-w-2xl mt-6">
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-1.5">
-          <LifeBuoy className="h-4 w-4 text-teal-600" aria-hidden />
+          <LifeBuoy className="h-4 w-4 text-primary" aria-hidden />
           گزارش‌های من
         </CardTitle>
         <CardDescription>وضعیت گزارش‌های مشکل شما؛ کد رهگیری برای پیگیری تلفنی هم قابل استفاده است.</CardDescription>

@@ -269,7 +269,7 @@ export function ContentComments({
       {/* فرم ثبت گفتگوی جدید */}
       <div className="rounded-2xl border bg-card p-4 space-y-3">
         <p className="text-sm font-semibold flex items-center gap-2">
-          <MessageSquarePlus className="h-4 w-4 text-teal-600" aria-hidden />
+          <MessageSquarePlus className="h-4 w-4 text-primary" aria-hidden />
           گفتگو در مورد این محتوا
         </p>
         <Textarea
@@ -316,7 +316,7 @@ export function ContentComments({
                     <span>
                       {u.name} <span className="text-xs text-muted-foreground">({u.roleLabel})</span>
                     </span>
-                    {mentionIds.includes(u.id) ? <BadgeCheck className="h-4 w-4 text-emerald-600" aria-hidden /> : null}
+                    {mentionIds.includes(u.id) ? <BadgeCheck className="h-4 w-4 text-success" aria-hidden /> : null}
                   </button>
                 ))
               )}
@@ -405,13 +405,13 @@ export function ContentComments({
                   <span className="text-sm font-semibold">{thread.authorName}</span>
                   <span className="text-xs text-muted-foreground">{timeAgo(thread.createdAt)}</span>
                   {thread.status === 'RESOLVED' ? (
-                    <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 gap-1 border-0">
+                    <Badge className="bg-success/10 text-success gap-1 border-0">
                       <CheckCheck className="h-3 w-3" aria-hidden />
                       حل‌شده
                       {thread.resolvedByName ? ` توسط ${thread.resolvedByName}` : ''}
                     </Badge>
                   ) : (
-                    <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-0">باز</Badge>
+                    <Badge className="bg-warning/10 text-warning border-0">باز</Badge>
                   )}
                   {replies.length > 0 ? (
                     <Badge variant="secondary" className="gap-1 text-[11px]">
@@ -475,7 +475,7 @@ export function ContentComments({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-7 text-xs gap-1 text-teal-700 dark:text-teal-300"
+                          className="h-7 text-xs gap-1 text-primary"
                           disabled={busy}
                           onClick={() => convertToTask(thread)}
                           aria-label="تبدیل نظر به درخواست اصلاح"

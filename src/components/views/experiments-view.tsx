@@ -152,11 +152,11 @@ type ResultsResponse = {
 
 const STATUS_INFO: Record<string, { label: string; color: string; bg: string }> = {
   DRAFT: { label: 'پیش‌نویس', color: 'text-slate-700 dark:text-slate-300', bg: 'bg-slate-100 dark:bg-slate-800' },
-  REVIEW: { label: 'در بررسی فنی', color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-950' },
-  RUNNING: { label: 'در حال اجرا', color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-100 dark:bg-emerald-950' },
-  PAUSED: { label: 'متوقف‌شده', color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-950' },
-  ENDED: { label: 'پایان‌یافته', color: 'text-teal-700 dark:text-teal-300', bg: 'bg-teal-100 dark:bg-teal-950' },
-  INVALID: { label: 'نامعتبر', color: 'text-red-700 dark:text-red-300', bg: 'bg-red-100 dark:bg-red-950' },
+  REVIEW: { label: 'در بررسی فنی', color: 'text-warning', bg: 'bg-warning/10' },
+  RUNNING: { label: 'در حال اجرا', color: 'text-success', bg: 'bg-success/10' },
+  PAUSED: { label: 'متوقف‌شده', color: 'text-warning', bg: 'bg-warning/10' },
+  ENDED: { label: 'پایان‌یافته', color: 'text-primary', bg: 'bg-primary/10' },
+  INVALID: { label: 'نامعتبر', color: 'text-destructive', bg: 'bg-destructive/10' },
 }
 
 function statusInfo(status: string) {
@@ -645,9 +645,9 @@ function ResultsPanel({ experimentId, refreshKey }: { experimentId: string; refr
               {results.readiness.map((r) => (
                 <li key={r.key} className="flex items-start gap-2">
                   {r.met ? (
-                    <BadgeCheck className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" aria-hidden />
+                    <BadgeCheck className="h-4 w-4 text-success mt-0.5 shrink-0" aria-hidden />
                   ) : (
-                    <CircleAlert className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" aria-hidden />
+                    <CircleAlert className="h-4 w-4 text-warning mt-0.5 shrink-0" aria-hidden />
                   )}
                   <span className={r.met ? '' : 'text-muted-foreground'}>{r.label}</span>
                 </li>
@@ -672,8 +672,8 @@ function ResultsPanel({ experimentId, refreshKey }: { experimentId: string; refr
                   <span className="font-semibold">{g.label}</span>
                   <StatusBadge
                     label={g.status === 'OK' ? 'در حد مجاز' : g.status === 'VIOLATED' ? 'نقض حد مجاز' : 'دادهٔ کافی نیست'}
-                    colorClass={g.status === 'OK' ? 'text-emerald-700 dark:text-emerald-300' : g.status === 'VIOLATED' ? 'text-destructive' : 'text-amber-700 dark:text-amber-300'}
-                    bgClass={g.status === 'OK' ? 'bg-emerald-100 dark:bg-emerald-950' : g.status === 'VIOLATED' ? 'bg-destructive/10' : 'bg-amber-100 dark:bg-amber-950'}
+                    colorClass={g.status === 'OK' ? 'text-success' : g.status === 'VIOLATED' ? 'text-destructive' : 'text-warning'}
+                    bgClass={g.status === 'OK' ? 'bg-success/10' : g.status === 'VIOLATED' ? 'bg-destructive/10' : 'bg-warning/10'}
                   />
                 </div>
                 <p className="text-xs text-muted-foreground mt-1.5 leading-6">
@@ -1067,8 +1067,8 @@ function ExperimentDetail({ experimentId, canManage, onChanged }: { experimentId
                         <span className="text-sm font-semibold">{c.label}</span>
                         <StatusBadge
                           label={c.status === 'PASS' ? 'گذشته' : c.status === 'FAIL' ? 'مانع شروع' : 'توصیه'}
-                          colorClass={c.status === 'PASS' ? 'text-emerald-700 dark:text-emerald-300' : c.status === 'FAIL' ? 'text-destructive' : 'text-amber-700 dark:text-amber-300'}
-                          bgClass={c.status === 'PASS' ? 'bg-emerald-100 dark:bg-emerald-950' : c.status === 'FAIL' ? 'bg-destructive/10' : 'bg-amber-100 dark:bg-amber-950'}
+                          colorClass={c.status === 'PASS' ? 'text-success' : c.status === 'FAIL' ? 'text-destructive' : 'text-warning'}
+                          bgClass={c.status === 'PASS' ? 'bg-success/10' : c.status === 'FAIL' ? 'bg-destructive/10' : 'bg-warning/10'}
                         />
                       </div>
                       <p className="text-xs text-muted-foreground mt-1.5 leading-6">{c.detail}</p>

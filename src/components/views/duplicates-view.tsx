@@ -222,7 +222,7 @@ export function DuplicatesView() {
       <div
         className={cn(
           'rounded-xl border p-4 space-y-2.5 transition-colors',
-          isTarget ? 'border-emerald-500/70 bg-emerald-500/5' : 'bg-background'
+          isTarget ? 'border-primary bg-primary/5' : 'bg-background'
         )}
       >
         <div className="flex items-start justify-between gap-2">
@@ -237,7 +237,7 @@ export function DuplicatesView() {
           {isSuggested ? (
             <Badge
               variant="outline"
-              className="shrink-0 border-violet-300 text-violet-700 dark:border-violet-800 dark:text-violet-300 text-[10px] px-1.5"
+              className="shrink-0 border-info/40 text-info text-[10px] px-1.5"
             >
               پیشنهاد سامانه
             </Badge>
@@ -252,7 +252,7 @@ export function DuplicatesView() {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
           <span className="tabular-nums">{toFa(side.count)} مقاله</span>
           {side.sharedCount > 0 ? (
-            <Badge className="bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-900 text-[10px] px-1.5">
+            <Badge className="bg-warning/10 text-warning border-warning/40 text-[10px] px-1.5">
               {toFa(side.sharedCount)} مقاله مشترک
             </Badge>
           ) : null}
@@ -363,7 +363,7 @@ export function DuplicatesView() {
                 <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex flex-wrap items-center gap-2 min-w-0">
                     {pair.strength === 'strong' ? (
-                      <Badge className="shrink-0 bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-900">
+                      <Badge className="shrink-0 bg-warning/10 text-warning border-warning/40">
                         تکراری محتمل
                       </Badge>
                     ) : (
@@ -438,7 +438,7 @@ export function DuplicatesView() {
 
               <ul className="space-y-2.5 text-sm rounded-xl border bg-muted/20 p-3">
                 <li className="flex items-start gap-2 leading-6">
-                  <MoveLeft className="h-4 w-4 mt-1 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                  <MoveLeft className="h-4 w-4 mt-1 shrink-0 text-success" aria-hidden />
                   <span>
                     ارتباط {toFa(mergeMovedEstimate)} مقاله منتقل می‌شود.
                     <span className="block text-xs text-muted-foreground mt-0.5">
@@ -456,7 +456,7 @@ export function DuplicatesView() {
               </ul>
 
               {tab === 'category' && mergeSourceSide.slug !== mergeTargetSide.slug ? (
-                <div className="flex items-start gap-2.5 rounded-xl border border-teal-600/30 bg-teal-500/5 p-3">
+                <div className="flex items-start gap-2.5 rounded-xl border border-primary/30 bg-primary/5 p-3">
                   <Checkbox
                     id="merge-redirect"
                     checked={registerRedirect}
@@ -483,14 +483,14 @@ export function DuplicatesView() {
                 >
                   <label
                     htmlFor="merge-name-target"
-                    className="flex items-center gap-2.5 rounded-lg border px-3 py-2 cursor-pointer has-[[data-state=checked]]:border-emerald-500/70 has-[[data-state=checked]]:bg-emerald-500/5"
+                    className="flex items-center gap-2.5 rounded-lg border px-3 py-2 cursor-pointer has-[[data-state=checked]]:border-primary/70 has-[[data-state=checked]]:bg-primary/5"
                   >
                     <RadioGroupItem value="target" id="merge-name-target" />
                     <span className="text-sm leading-6 min-w-0 line-clamp-1">مقصد: {mergeTargetSide.name}</span>
                   </label>
                   <label
                     htmlFor="merge-name-source"
-                    className="flex items-center gap-2.5 rounded-lg border px-3 py-2 cursor-pointer has-[[data-state=checked]]:border-emerald-500/70 has-[[data-state=checked]]:bg-emerald-500/5"
+                    className="flex items-center gap-2.5 rounded-lg border px-3 py-2 cursor-pointer has-[[data-state=checked]]:border-primary/70 has-[[data-state=checked]]:bg-primary/5"
                   >
                     <RadioGroupItem value="source" id="merge-name-source" />
                     <span className="text-sm leading-6 min-w-0 line-clamp-1">منبع: {mergeSourceSide.name}</span>
@@ -508,7 +508,7 @@ export function DuplicatesView() {
                   >
                     <label
                       htmlFor="merge-desc-target"
-                      className="flex items-start gap-2.5 rounded-lg border px-3 py-2 cursor-pointer has-[[data-state=checked]]:border-emerald-500/70 has-[[data-state=checked]]:bg-emerald-500/5"
+                      className="flex items-start gap-2.5 rounded-lg border px-3 py-2 cursor-pointer has-[[data-state=checked]]:border-primary/70 has-[[data-state=checked]]:bg-primary/5"
                     >
                       <RadioGroupItem value="target" id="merge-desc-target" className="mt-1" />
                       <span className="min-w-0">
@@ -520,7 +520,7 @@ export function DuplicatesView() {
                     </label>
                     <label
                       htmlFor="merge-desc-source"
-                      className="flex items-start gap-2.5 rounded-lg border px-3 py-2 cursor-pointer has-[[data-state=checked]]:border-emerald-500/70 has-[[data-state=checked]]:bg-emerald-500/5"
+                      className="flex items-start gap-2.5 rounded-lg border px-3 py-2 cursor-pointer has-[[data-state=checked]]:border-primary/70 has-[[data-state=checked]]:bg-primary/5"
                     >
                       <RadioGroupItem value="source" id="merge-desc-source" className="mt-1" />
                       <span className="min-w-0">
@@ -532,7 +532,7 @@ export function DuplicatesView() {
                     </label>
                     <label
                       htmlFor="merge-desc-clear"
-                      className="flex items-center gap-2.5 rounded-lg border px-3 py-2 cursor-pointer has-[[data-state=checked]]:border-emerald-500/70 has-[[data-state=checked]]:bg-emerald-500/5"
+                      className="flex items-center gap-2.5 rounded-lg border px-3 py-2 cursor-pointer has-[[data-state=checked]]:border-primary/70 has-[[data-state=checked]]:bg-primary/5"
                     >
                       <RadioGroupItem value="clear" id="merge-desc-clear" />
                       <span className="text-sm leading-6">خالی شود</span>

@@ -217,7 +217,7 @@ export function CommandPalette({
   if (!searchReady) {
     const favoriteItems: PaletteItem[] = favorites.map((f) => ({
     key: `fav-${f.id}`,
-    icon: <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-500" aria-hidden />,
+    icon: <Star className="h-4 w-4 shrink-0 fill-warning text-warning" aria-hidden />,
     title: f.title,
     onSelect: () => go(f.path),
     trailing: (
@@ -239,7 +239,7 @@ export function CommandPalette({
 
   const actionItems: PaletteItem[] = COMMAND_PALETTE_ACTIONS.filter((a) => can(a.perm)).map((a) => ({
     key: `action-${a.id}`,
-    icon: <a.icon className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />,
+    icon: <a.icon className="h-4 w-4 shrink-0 text-success" aria-hidden />,
     title: a.label,
     onSelect: () => {
       if (a.action === 'dialog' && onAction) {
@@ -259,7 +259,7 @@ export function CommandPalette({
     for (const a of results.articles) {
       searchItems.push({
         key: `sr-article-${a.id}`,
-        icon: <FileText className="h-4 w-4 shrink-0 text-rose-600" aria-hidden />,
+        icon: <FileText className="h-4 w-4 shrink-0 text-destructive" aria-hidden />,
         title: a.title,
         badge: 'مقاله',
         onSelect: () => go(`#/articles/${a.id}/edit`),
@@ -268,7 +268,7 @@ export function CommandPalette({
     for (const p of results.pages) {
       searchItems.push({
         key: `sr-page-${p.id}`,
-        icon: <LayoutList className="h-4 w-4 shrink-0 text-violet-600" aria-hidden />,
+        icon: <LayoutList className="h-4 w-4 shrink-0 text-info" aria-hidden />,
         title: p.title,
         badge: 'صفحه',
         onSelect: () => go('/pages'),
@@ -277,7 +277,7 @@ export function CommandPalette({
     for (const m of results.media) {
       searchItems.push({
         key: `sr-media-${m.id}`,
-        icon: <ImageIcon className="h-4 w-4 shrink-0 text-amber-600" aria-hidden />,
+        icon: <ImageIcon className="h-4 w-4 shrink-0 text-warning" aria-hidden />,
         title: m.originalName,
         badge: 'فایل',
         onSelect: () => go('/media'),
@@ -286,7 +286,7 @@ export function CommandPalette({
     for (const u of results.users) {
       searchItems.push({
         key: `sr-user-${u.id}`,
-        icon: <UserRound className="h-4 w-4 shrink-0 text-teal-600" aria-hidden />,
+        icon: <UserRound className="h-4 w-4 shrink-0 text-primary" aria-hidden />,
         title: u.name,
         subtitle: u.email,
         badge: 'کاربر',
@@ -301,7 +301,7 @@ export function CommandPalette({
     (n) => can(n.perm) && normalizeFa(n.label).includes(normalizeFa(trimmed))
   ).map((n) => ({
     key: `nav-${n.href}`,
-    icon: <n.icon className="h-4 w-4 shrink-0 text-teal-600" aria-hidden />,
+    icon: <n.icon className="h-4 w-4 shrink-0 text-primary" aria-hidden />,
     title: n.label,
     subtitle: n.href,
     onSelect: () => go(n.href),

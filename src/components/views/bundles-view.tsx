@@ -260,13 +260,13 @@ const SLATE_META: Pick<StatusMeta, 'colorClass' | 'bgClass'> = {
 
 const BUNDLE_STATUS_META: Record<BundleStatus, StatusMeta> = {
   DRAFT: { label: 'پیش‌نویس', ...SLATE_META },
-  IN_REVIEW: { label: 'در بررسی', colorClass: 'text-violet-700 dark:text-violet-300', bgClass: 'bg-violet-100 dark:bg-violet-950' },
-  APPROVED: { label: 'تأییدشده', colorClass: 'text-teal-700 dark:text-teal-300', bgClass: 'bg-teal-100 dark:bg-teal-950' },
-  SCHEDULED: { label: 'زمان‌بندی‌شده', colorClass: 'text-amber-700 dark:text-amber-300', bgClass: 'bg-amber-100 dark:bg-amber-950' },
-  PUBLISHING: { label: 'در حال انتشار', colorClass: 'text-cyan-700 dark:text-cyan-300', bgClass: 'bg-cyan-100 dark:bg-cyan-950' },
-  PUBLISHED: { label: 'منتشرشده', colorClass: 'text-emerald-700 dark:text-emerald-300', bgClass: 'bg-emerald-100 dark:bg-emerald-950' },
-  PARTIAL: { label: 'انتشار جزئی', colorClass: 'text-orange-700 dark:text-orange-300', bgClass: 'bg-orange-100 dark:bg-orange-950' },
-  FAILED: { label: 'ناموفق', colorClass: 'text-rose-700 dark:text-rose-300', bgClass: 'bg-rose-100 dark:bg-rose-950' },
+  IN_REVIEW: { label: 'در بررسی', colorClass: 'text-info', bgClass: 'bg-info/10' },
+  APPROVED: { label: 'تأییدشده', colorClass: 'text-primary', bgClass: 'bg-primary/10' },
+  SCHEDULED: { label: 'زمان‌بندی‌شده', colorClass: 'text-warning', bgClass: 'bg-warning/10' },
+  PUBLISHING: { label: 'در حال انتشار', colorClass: 'text-primary', bgClass: 'bg-primary/10' },
+  PUBLISHED: { label: 'منتشرشده', colorClass: 'text-success', bgClass: 'bg-success/10' },
+  PARTIAL: { label: 'انتشار جزئی', colorClass: 'text-warning', bgClass: 'bg-warning/10' },
+  FAILED: { label: 'ناموفق', colorClass: 'text-destructive', bgClass: 'bg-destructive/10' },
   CANCELLED: { label: 'لغوشده', colorClass: 'text-zinc-700 dark:text-zinc-300', bgClass: 'bg-zinc-100 dark:bg-zinc-900' },
 }
 
@@ -277,9 +277,9 @@ function bundleStatusMeta(status: string): StatusMeta {
 }
 
 const READINESS_META: Record<ReadinessState, StatusMeta> = {
-  READY: { label: 'آماده', colorClass: 'text-emerald-700 dark:text-emerald-300', bgClass: 'bg-emerald-100 dark:bg-emerald-950' },
-  READY_WARNINGS: { label: 'آماده با هشدار', colorClass: 'text-amber-700 dark:text-amber-300', bgClass: 'bg-amber-100 dark:bg-amber-950' },
-  BLOCKED: { label: 'مسدود', colorClass: 'text-rose-700 dark:text-rose-300', bgClass: 'bg-rose-100 dark:bg-rose-950' },
+  READY: { label: 'آماده', colorClass: 'text-success', bgClass: 'bg-success/10' },
+  READY_WARNINGS: { label: 'آماده با هشدار', colorClass: 'text-warning', bgClass: 'bg-warning/10' },
+  BLOCKED: { label: 'مسدود', colorClass: 'text-destructive', bgClass: 'bg-destructive/10' },
   UNKNOWN: { label: 'بررسی نشده', ...SLATE_META },
 }
 
@@ -289,10 +289,10 @@ function readinessMeta(state: string): StatusMeta {
 
 const ARTICLE_STATUS_META: Record<string, StatusMeta> = {
   DRAFT: { label: 'پیش‌نویس', ...SLATE_META },
-  IN_REVIEW: { label: 'در بررسی', colorClass: 'text-amber-700 dark:text-amber-300', bgClass: 'bg-amber-100 dark:bg-amber-950' },
-  NEEDS_REVISION: { label: 'نیازمند اصلاح', colorClass: 'text-orange-700 dark:text-orange-300', bgClass: 'bg-orange-100 dark:bg-orange-950' },
-  APPROVED: { label: 'تأییدشده', colorClass: 'text-teal-700 dark:text-teal-300', bgClass: 'bg-teal-100 dark:bg-teal-950' },
-  PUBLISHED: { label: 'منتشرشده', colorClass: 'text-emerald-700 dark:text-emerald-300', bgClass: 'bg-emerald-100 dark:bg-emerald-950' },
+  IN_REVIEW: { label: 'در بررسی', colorClass: 'text-warning', bgClass: 'bg-warning/10' },
+  NEEDS_REVISION: { label: 'نیازمند اصلاح', colorClass: 'text-warning', bgClass: 'bg-warning/10' },
+  APPROVED: { label: 'تأییدشده', colorClass: 'text-primary', bgClass: 'bg-primary/10' },
+  PUBLISHED: { label: 'منتشرشده', colorClass: 'text-success', bgClass: 'bg-success/10' },
   ARCHIVED: { label: 'بایگانی‌شده', colorClass: 'text-zinc-700 dark:text-zinc-300', bgClass: 'bg-zinc-100 dark:bg-zinc-900' },
 }
 
@@ -302,14 +302,14 @@ function articleStatusMeta(status: string): StatusMeta {
 
 const RUN_STATUS_META: Record<string, StatusMeta> = {
   QUEUED: { label: 'در صف', ...SLATE_META },
-  RUNNING: { label: 'در حال اجرا', colorClass: 'text-cyan-700 dark:text-cyan-300', bgClass: 'bg-cyan-100 dark:bg-cyan-950' },
-  SUCCESS: { label: 'موفق', colorClass: 'text-emerald-700 dark:text-emerald-300', bgClass: 'bg-emerald-100 dark:bg-emerald-950' },
-  PARTIAL: { label: 'ناقص', colorClass: 'text-amber-700 dark:text-amber-300', bgClass: 'bg-amber-100 dark:bg-amber-950' },
-  FAILED: { label: 'ناموفق', colorClass: 'text-rose-700 dark:text-rose-300', bgClass: 'bg-rose-100 dark:bg-rose-950' },
+  RUNNING: { label: 'در حال اجرا', colorClass: 'text-primary', bgClass: 'bg-primary/10' },
+  SUCCESS: { label: 'موفق', colorClass: 'text-success', bgClass: 'bg-success/10' },
+  PARTIAL: { label: 'ناقص', colorClass: 'text-warning', bgClass: 'bg-warning/10' },
+  FAILED: { label: 'ناموفق', colorClass: 'text-destructive', bgClass: 'bg-destructive/10' },
   CANCEL_REQUESTED: {
     label: 'درخواست لغو',
-    colorClass: 'text-rose-700/80 dark:text-rose-300/80',
-    bgClass: 'bg-rose-50 dark:bg-rose-950/60',
+    colorClass: 'text-destructive/80',
+    bgClass: 'bg-destructive/5',
   },
   CANCELLED: { label: 'لغوشده', colorClass: 'text-zinc-700 dark:text-zinc-300', bgClass: 'bg-zinc-100 dark:bg-zinc-900' },
 }
@@ -320,8 +320,8 @@ function runStatusMeta(status: string): StatusMeta {
 
 const RUN_ITEM_STATUS_META: Record<string, StatusMeta> = {
   PENDING: { label: 'در انتظار', ...SLATE_META },
-  SUCCEEDED: { label: 'موفق', colorClass: 'text-emerald-700 dark:text-emerald-300', bgClass: 'bg-emerald-100 dark:bg-emerald-950' },
-  FAILED: { label: 'ناموفق', colorClass: 'text-rose-700 dark:text-rose-300', bgClass: 'bg-rose-100 dark:bg-rose-950' },
+  SUCCEEDED: { label: 'موفق', colorClass: 'text-success', bgClass: 'bg-success/10' },
+  FAILED: { label: 'ناموفق', colorClass: 'text-destructive', bgClass: 'bg-destructive/10' },
   SKIPPED: { label: 'ردشده', ...SLATE_META },
   CANCELLED: { label: 'لغوشده', colorClass: 'text-zinc-700 dark:text-zinc-300', bgClass: 'bg-zinc-100 dark:bg-zinc-900' },
 }
@@ -587,7 +587,7 @@ function VersionSelect({
 function ItemResultCell({ result, message }: { result: BundleItem['result']; message: string | null }) {
   if (result === 'SUCCESS') {
     return (
-      <span className="inline-flex items-start gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+      <span className="inline-flex items-start gap-1.5 text-xs font-medium text-success">
         <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
         <span>
           موفق
@@ -598,7 +598,7 @@ function ItemResultCell({ result, message }: { result: BundleItem['result']; mes
   }
   if (result === 'FAILED') {
     return (
-      <span className="inline-flex items-start gap-1.5 text-xs font-medium text-rose-600 dark:text-rose-400">
+      <span className="inline-flex items-start gap-1.5 text-xs font-medium text-destructive">
         <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
         <span>
           ناموفق
@@ -1174,7 +1174,7 @@ function BundleListRow({
       <div className="mt-2.5 space-y-1 text-xs text-muted-foreground">
         {row.ownerName ? <p>مسئول: {row.ownerName}</p> : null}
         {row.scheduledAt ? (
-          <p className="flex items-center gap-1 font-medium text-amber-700 dark:text-amber-400">
+          <p className="flex items-center gap-1 font-medium text-warning">
             <CalendarClock className="h-3 w-3 shrink-0" aria-hidden />
             <span>موعد: {formatTehranDateTime(row.scheduledAt)}</span>
           </p>
@@ -1184,7 +1184,7 @@ function BundleListRow({
             <>
               {toFa(row.itemsPublished)} از {toFa(row.itemsTotal)} جزء منتشر شد
               {row.itemsFailed > 0 && (
-                <span className="font-medium text-rose-600 dark:text-rose-400"> · {toFa(row.itemsFailed)} ناموفق</span>
+                <span className="font-medium text-destructive"> · {toFa(row.itemsFailed)} ناموفق</span>
               )}
             </>
           ) : (
@@ -1211,22 +1211,22 @@ function ReadinessCheckRow({ check }: { check: ReadinessCheck }) {
     <div
       className={cn(
         'flex items-start gap-2.5 rounded-xl border p-3',
-        isError && 'border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950/50',
-        isWarning && 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/50',
-        !isError && !isWarning && 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40'
+        isError && 'border-destructive/30 bg-destructive/10',
+        isWarning && 'border-warning/30 bg-warning/10',
+        !isError && !isWarning && 'border-success/30 bg-success/10'
       )}
     >
       <Icon
         className={cn(
           'mt-0.5 h-4 w-4 shrink-0',
-          isError && 'text-rose-600 dark:text-rose-400',
-          isWarning && 'text-amber-600 dark:text-amber-400',
-          !isError && !isWarning && 'text-emerald-600 dark:text-emerald-400'
+          isError && 'text-destructive',
+          isWarning && 'text-warning',
+          !isError && !isWarning && 'text-success'
         )}
         aria-hidden
       />
       <div className="min-w-0">
-        <p className={cn('text-sm font-medium leading-6', isError && 'text-rose-700 dark:text-rose-300')}>
+        <p className={cn('text-sm font-medium leading-6', isError && 'text-destructive')}>
           {check.label}
         </p>
         <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{check.detail}</p>
@@ -1244,9 +1244,9 @@ function ReadinessCheckRow({ check }: { check: ReadinessCheck }) {
 
 function RunItemIcon({ status }: { status: RunItemStatus }) {
   if (status === 'SUCCEEDED')
-    return <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+    return <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />
   if (status === 'FAILED')
-    return <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden />
+    return <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden />
   return <MinusCircle className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden />
 }
 
@@ -1264,7 +1264,7 @@ function RunCard({ run, runNumber, retryOfNumber }: { run: BundleRun; runNumber:
             {run.retryOfId ? (
               <Badge
                 variant="outline"
-                className="border-amber-300 bg-amber-50 text-[11px] font-normal text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                className="border-warning/30 bg-warning/10 text-[11px] font-normal text-warning"
               >
                 تلاش مجدد {retryOfNumber ? `#${toFa(retryOfNumber)}` : 'اجرای قبلی'}
               </Badge>
@@ -1272,7 +1272,7 @@ function RunCard({ run, runNumber, retryOfNumber }: { run: BundleRun; runNumber:
             {run.cancelRequested ? (
               <Badge
                 variant="outline"
-                className="border-rose-300 bg-rose-50 text-[11px] font-normal text-rose-700 dark:border-rose-800 dark:bg-rose-950/60 dark:text-rose-300"
+                className="border-destructive/30 bg-destructive/10 text-[11px] font-normal text-destructive"
               >
                 درخواست لغو
               </Badge>
@@ -1651,7 +1651,7 @@ export function BundlesView() {
                         <StatusBadge {...bundleStatusMeta(detail.status)} />
                         <StatusBadge dot={false} {...readinessMeta(detail.readinessState)} />
                         {detail.scheduledAt ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400">
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-warning">
                             <CalendarClock className="h-3.5 w-3.5" aria-hidden />
                             {formatTehranDateTime(detail.scheduledAt)}
                           </span>
@@ -1721,7 +1721,7 @@ export function BundlesView() {
                         icon={CalendarClock}
                         label="زمان انتشار"
                         value={detail.scheduledAt ? formatTehranDateTime(detail.scheduledAt) : 'تنظیم نشده'}
-                        valueClass={detail.scheduledAt ? 'text-amber-700 dark:text-amber-400' : undefined}
+                        valueClass={detail.scheduledAt ? 'text-warning' : undefined}
                       />
                       <InfoRow
                         icon={Rocket}
@@ -1765,7 +1765,7 @@ export function BundlesView() {
                             <p className="text-xs text-muted-foreground tabular-nums">
                               {toFa(published)} از {toFa(total)} جزء منتشر شد
                               {failed > 0 && (
-                                <span className="font-medium text-rose-600 dark:text-rose-400">
+                                <span className="font-medium text-destructive">
                                   {' '}
                                   — {toFa(failed)} ناموفق
                                 </span>
@@ -1861,7 +1861,7 @@ export function BundlesView() {
                                       {newerExists ? (
                                         <Badge
                                           variant="outline"
-                                          className="border-rose-300 bg-rose-50 text-[11px] font-normal text-rose-700 dark:border-rose-800 dark:bg-rose-950/60 dark:text-rose-300"
+                                          className="border-destructive/30 bg-destructive/10 text-[11px] font-normal text-destructive"
                                         >
                                           نسخهٔ جدیدی ({toFa(it.latestVersionNumber ?? 0)}) پس از انتخاب ثبت شده
                                         </Badge>
