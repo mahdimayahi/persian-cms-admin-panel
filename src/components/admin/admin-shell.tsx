@@ -9,6 +9,7 @@ import {
   FileText,
   FolderTree,
   Gauge,
+  Globe,
   HeartPulse,
   Home,
   LifeBuoy,
@@ -58,9 +59,10 @@ import { useAppStore } from '@/store/app-store'
 import { ROLE_LABELS, type Role } from '@/lib/permissions'
 import { CommandPalette } from '@/components/shared/command-palette'
 import { SupportReportDialog } from '@/components/shared/support-dialog'
+import { SitePreviewDialog } from '@/components/shared/site-preview-dialog'
 import { cn } from '@/lib/utils'
 
-type NavItem = { label: string; href: string; perm: string | null; icon: React.ElementType }
+type NavItem = { label: string; href: string; perm: string | null; icon: React.ElementType; action?: 'view-site' }
 type NavGroup = { group: string | null; items: NavItem[] }
 
 const MENU: NavGroup[] = [
@@ -93,6 +95,7 @@ const MENU: NavGroup[] = [
     items: [
       { label: 'صفحات', href: '/pages', perm: 'pages.view', icon: LayoutList },
       { label: 'منوها', href: '/menus', perm: 'menus.manage', icon: ChevronDown },
+      { label: 'نمایش سایت', href: '/site-preview', perm: null, icon: Globe, action: 'view-site' },
     ],
   },
   {
@@ -191,11 +194,13 @@ export function SidebarContent({
   navigate,
   onNavigate,
   taskBadge,
+  onViewSite,
 }: {
   path: string
   navigate: (to: string) => void
   onNavigate?: () => void
   taskBadge?: TaskBadgeCounts | null
+  onViewSite?: () => void
 }) {
   const permissions = useAppStore((s) => s.permissions)
   const can = (perm: string | null) => !perm || permissions.includes(perm)
@@ -248,7 +253,8 @@ export function SidebarContent({
                         <button
                           type="button"
                           onClick={() => {
-                            navigate(item.href)
+                            if (item.action === 'view-site') onViewSite?.()
+                            else navigate(item.href)
                             onNavigate?.()
                           }}
                           aria-current={active ? 'page' : undefined}
@@ -551,6 +557,7 @@ export function AdminShell({
   const [mobileOpen, setMobileOpen] = React.useState(false)
   const [paletteOpen, setPaletteOpen] = React.useState(false)
   const [supportOpen, setSupportOpen] = React.useState(false)
+  const [sitePreviewOpen, setSitePreviewOpen] = React.useState(false)
   const taskBadge = useTaskBadge()
 
   // میان‌بر Ctrl+K / Cmd+K برای پالت فرمان
@@ -590,7 +597,12 @@ export function AdminShell({
         {/* نوار کناری تیره — دسکتاپ */}
         <aside className="hidden lg:block w-64 shrink-0" aria-label="نوار کناری">
           <div className="sticky top-0 h-screen shadow-[-8px_0_32px_-16px_oklch(0.2_0.03_168/0.35)]">
-            <SidebarContent path={path} navigate={navigate} taskBadge={taskBadge} />
+            <SidebarContent
+              path={path}
+              navigate={navigate}
+              taskBadge={taskBadge}
+              onViewSite={() => setSitePreviewOpen(true)}
+            />
           </div>
         </aside>
 
@@ -598,7 +610,16 @@ export function AdminShell({
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetContent side="right" className="p-0 w-72 border-s-0 [&>button:last-of-type]:hidden" dir="rtl">
             <SheetTitle className="sr-only">منوی اصلی</SheetTitle>
-            <SidebarContent path={path} navigate={navigate} onNavigate={() => setMobileOpen(false)} taskBadge={taskBadge} />
+            <SidebarContent
+              path={path}
+              navigate={navigate}
+              onNavigate={() => setMobileOpen(false)}
+              taskBadge={taskBadge}
+              onViewSite={() => {
+                setMobileOpen(false)
+                setSitePreviewOpen(true)
+              }}
+            />
             <SheetClose asChild>
               <button
                 type="button"
@@ -657,6 +678,16 @@ export function AdminShell({
                 variant="ghost"
                 size="icon"
                 className="rounded-xl hover:bg-muted"
+                aria-label="نمایش سایت"
+                title="نمایش سایت"
+                onClick={() => setSitePreviewOpen(true)}
+              >
+                <Globe className="h-5 w-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-xl hover:bg-muted"
                 aria-label="گزارش مشکل"
                 title="گزارش مشکل"
                 onClick={() => setSupportOpen(true)}
@@ -707,10 +738,19 @@ export function AdminShell({
       </div>
 
       {/* پالت فرمان سراسری (Ctrl+K) */}
-      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <CommandPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        onAction={(id) => {
+          if (id === 'view-site') setSitePreviewOpen(true)
+        }}
+      />
 
       {/* گزارش مشکل (پشتیبانی تشخیصی) */}
       <SupportReportDialog open={supportOpen} onOpenChange={setSupportOpen} />
+
+      {/* نمایش سایت (پیش‌نمایش سایت عمومی) */}
+      <SitePreviewDialog open={sitePreviewOpen} onOpenChange={setSitePreviewOpen} />
     </div>
   )
 }

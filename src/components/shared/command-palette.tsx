@@ -14,6 +14,7 @@ import {
   FileText,
   FolderTree,
   Gauge,
+  Globe,
   BookA,
   CopyMinus,
   HeartPulse,
@@ -75,11 +76,12 @@ export const COMMAND_PALETTE_NAV: { label: string; href: string; perm: string | 
 ]
 
 /* ─── اقدام‌های سریع ────────────────────────────────────────────── */
-export const COMMAND_PALETTE_ACTIONS: { id: string; label: string; perm: string | null; icon: React.ElementType; href: string }[] = [
+export const COMMAND_PALETTE_ACTIONS: { id: string; label: string; perm: string | null; icon: React.ElementType; href: string; action?: 'dialog' }[] = [
   { id: 'new-article', label: 'مقاله جدید', perm: 'articles.create', icon: FilePlus2, href: '/articles/new' },
   { id: 'new-task', label: 'واگذاری کار جدید', perm: null, icon: ClipboardPlus, href: '/tasks' },
   { id: 'upload-media', label: 'بارگذاری رسانه', perm: 'media.upload', icon: Upload, href: '/media' },
   { id: 'health-check', label: 'بررسی سلامت محتوا', perm: 'articles.view', icon: HeartPulse, href: '/health' },
+  { id: 'view-site', label: 'نمایش سایت', perm: null, icon: Globe, href: '/site-preview', action: 'dialog' },
 ]
 
 type FavoriteItem = { id: string; itemType: string; itemId: string; title: string; path: string }
@@ -111,7 +113,16 @@ function normalizeFa(value: string): string {
   return value.replace(/\u064A/g, 'ی').replace(/\u0643/g, 'ک').toLowerCase().trim()
 }
 
-export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+export function CommandPalette({
+  open,
+  onOpenChange,
+  onAction,
+}: {
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  /** اقدام‌هایی که به‌جای ناوبری، گفت‌وگو باز می‌کنند (مثل «نمایش سایت») */
+  onAction?: (id: string) => void
+}) {
   const permissions = useAppStore((s) => s.permissions)
   const can = (perm: string | null) => !perm || permissions.includes(perm)
 
@@ -230,7 +241,14 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
     key: `action-${a.id}`,
     icon: <a.icon className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />,
     title: a.label,
-    onSelect: () => go(a.href),
+    onSelect: () => {
+      if (a.action === 'dialog' && onAction) {
+        onOpenChange(false)
+        onAction(a.id)
+      } else {
+        go(a.href)
+      }
+    },
   }))
   if (actionItems.length > 0) sections.push({ id: 'actions', title: 'اقدام‌های سریع', items: actionItems })
   }
