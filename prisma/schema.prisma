@@ -80,6 +80,10 @@ model Article {
   owner          User?          @relation("ArticleOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   reviewAt       DateTime?      // تاریخ بازبینی بعدی محتوا
   lastReviewedAt DateTime?      // آخرین بار که «اطلاعات معتبر است» تأیید شد
+  sourceTemplateId      String?  // الگویی که این محتوا از آن ساخته شده
+  sourceTemplateVersion Int?    // نسخه الگو در لحظه ساخت
+  sourceTemplateName    String? // نام الگو در لحظه ساخت (حتی اگر الگو حذف/غیرفعال شود حفظ می‌شود)
+  template       ContentTemplate? @relation(fields: [sourceTemplateId], references: [id], onDelete: SetNull)
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   versions       ArticleVersion[]
@@ -290,30 +294,58 @@ model ContentComment {
 
 // بسته انتشار (کمپین) — مجموعه مقالات که با هم آماده و منتشر می‌شوند
 model PublishBundle {
-  id            String       @id @default(cuid())
-  title         String
-  note          String       @default("")
-  status        String       @default("DRAFT") // DRAFT | SCHEDULED | PUBLISHING | PUBLISHED | PARTIAL | FAILED | CANCELLED
-  scheduledAt   DateTime?
-  publishedAt   DateTime?
-  createdById   String
-  createdByName String
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  items         BundleItem[]
+  id             String       @id @default(cuid())
+  title          String
+  note           String       @default("") // توضیح بسته
+  status         String       @default("DRAFT") // DRAFT | IN_REVIEW | APPROVED | SCHEDULED | PUBLISHING | PUBLISHED | PARTIAL | FAILED | CANCELLED
+  ownerId        String?      // مسئول بسته (مسئول پاسخ‌گویی)
+  ownerName      String?
+  scheduledAt    DateTime?    // زمان انتشار زمان‌بندی‌شده (UTC)
+  timezone       String       @default("Asia/Tehran") // منطقه زمانی نمایش و تفسیر زمان انتشار
+  publishedAt    DateTime?
+  approvedAt     DateTime?    // آخرین تأیید معتبر
+  approvedById   String?
+  approvedByName String?
+  readinessState String       @default("UNKNOWN") // READY | READY_WARNINGS | BLOCKED | UNKNOWN — نتیجه آخرین بررسی آمادگی
+  readinessJson  String       @default("[]") // آخرین گزارش بررسی آمادگی (JSON)
+  createdById    String
+  createdByName  String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  items          BundleItem[]
+  history        BundleHistory[]
 
   @@index([status])
 }
 
+// سابقه تغییرات بسته (اقلام، نسخه‌ها، زمان‌بندی، تأیید، اجرا)
+model BundleHistory {
+  id        String         @id @default(cuid())
+  bundleId  String
+  bundle    PublishBundle  @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  kind      String         // CREATED | ITEM_ADDED | ITEM_REMOVED | ITEM_VERSION_SET | SCHEDULE_SET | SCHEDULE_CANCELLED | SENT_TO_REVIEW | APPROVED | APPROVAL_INVALIDATED | READINESS_RUN | RUN | RETRY | CANCELLED | UPDATED
+  message   String         @default("")
+  userId    String?
+  userName  String?
+  createdAt DateTime       @default(now())
+
+  @@index([bundleId, createdAt])
+}
+
 model BundleItem {
-  id             String        @id @default(cuid())
-  bundleId       String
-  bundle         PublishBundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
-  articleId      String
-  article        Article       @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  snapshotStatus String        @default("") // وضعیت مقاله در لحظه افزودن به بسته
-  result         String?       // SUCCESS | FAILED
-  message        String?
+  id                String        @id @default(cuid())
+  bundleId          String
+  bundle            PublishBundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  articleId         String
+  article           Article       @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  versionId         String?       // نسخه مشخص محتوا که عضو بسته است (الزامی برای آمادگی)
+  versionNumber     Int?          // شماره نسخه برای نمایش سریع
+  approvedVersionId String?       // نسخه‌ای که هنگام تأیید بسته ثبت شد — فقط همان نسخه منتشر می‌شود
+  label             String        @default("") // نقش قلم در بسته (مثل «صفحه معرفی خدمت»)
+  snapshotStatus    String        @default("") // وضعیت مقاله در لحظه افزودن به بسته
+  result            String?       // SUCCESS | FAILED | SKIPPED
+  message           String?
+  addedAt           DateTime      @default(now())
 
   @@unique([bundleId, articleId])
   @@index([bundleId])
@@ -385,25 +417,83 @@ model ContentTemplate {
   titleTemplate   String   @default("")
   excerptTemplate String   @default("")
   contentTemplate String   @default("")
+  structure       String   @default("[]") // JSON ساختار فیلدها/بلوک‌های الگو
+  guideText       String   @default("") // متن راهنما و نمونه برای استفاده از الگو
+  checklist       String   @default("[]") // JSON چک‌لیست تکمیل (آیتم‌های متنی)
   tagNames        String   @default("[]") // JSON آرایه نام برچسب‌ها
   categoryId      String?
+  isActive        Boolean  @default(true) // برای ساخت محتوای جدید قابل انتخاب
+  version         Int      @default(1) // نسخه فعلی — هر تغییر ثبت‌شده، نسخه جدید می‌سازد
   isSystem        Boolean  @default(false)
   createdById     String?
   createdByName   String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  versions        TemplateVersion[]
+  articles        Article[]
+}
+
+// نسخه‌های ثبت‌شده الگو (سابقه تغییرات)
+model TemplateVersion {
+  id              String          @id @default(cuid())
+  templateId      String
+  template        ContentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  version         Int
+  name            String
+  description     String          @default("")
+  type            String          @default("ARTICLE")
+  structure       String          @default("[]")
+  titleTemplate   String          @default("")
+  excerptTemplate String          @default("")
+  contentTemplate String          @default("")
+  guideText       String          @default("")
+  checklist       String          @default("[]")
+  tagNames        String          @default("[]")
+  categoryId      String?
+  changeNote      String          @default("")
+  createdByName   String          @default("")
+  createdAt       DateTime        @default(now())
+
+  @@unique([templateId, version])
+  @@index([templateId])
 }
 
 // واژه‌نامه و کنترل هویت برند (هشدار غیرمسدودکننده در ویرایشگر)
 model GlossaryTerm {
-  id            String   @id @default(cuid())
-  term          String   @unique
-  replacement   String   @default("")
-  type          String   @default("PREFERRED") // PREFERRED | FORBIDDEN | REVIEW
-  note          String   @default("")
+  id            String              @id @default(cuid())
+  term          String              @unique // شکل مشاهده‌شده/نامطلوب که باید تشخیص داده شود
+  preferred     String              @default("") // عبارت ترجیحی (پیشنهاد اصلاح)
+  forms         String              @default("[]") // JSON: سایر شکل‌های نامطلوب که باید تشخیص داده شوند
+  type          String              @default("STYLE") // BRAND_TERM | BRAND_NAME | STYLE | CLARITY (نوع بررسی)
+  severity      String              @default("SUGGESTION") // SUGGESTION | WARNING | ENFORCING (شدت هشدار)
+  scope         String              @default("ALL") // ALL | TITLE | BODY | SEO (دامنه کاربرد)
+  language      String              @default("FA") // FA | EN (زبان واژه)
+  explanation   String              @default("") // توضیح علت هشدار
+  example       String              @default("") // مثال کاربرد درست
+  note          String              @default("")
+  isActive      Boolean             @default(true) // قاعده غیرفعال در بررسی اعمال نمی‌شود
   createdById   String?
   createdByName String?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  exceptions    GlossaryException[]
+}
+
+// استثناهای ثبت‌شده برای نادیده‌گرفتن یک قاعده در یک محتوای مشخص (با دلیل و مسئول)
+model GlossaryException {
+  id            String       @id @default(cuid())
+  termId        String
+  term          GlossaryTerm @relation(fields: [termId], references: [id], onDelete: Cascade)
+  entityType    String       @default("ARTICLE")
+  entityId      String
+  field         String       // TITLE | EXCERPT | CONTENT | SEO_TITLE | SEO_DESCRIPTION
+  reason        String
+  ignoredById   String
+  ignoredByName String
+  createdAt     DateTime     @default(now())
+
+  @@unique([termId, entityId, field])
+  @@index([entityType, entityId])
 }
 
 // پشتیبانی تشخیصی — گزارش مشکل با شناسه قابل‌ردگیری
