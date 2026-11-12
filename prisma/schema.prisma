@@ -20,6 +20,7 @@ model User {
   updatedAt    DateTime  @updatedAt
   lastLoginAt  DateTime?
   articles     Article[]
+  ownedArticles Article[]  @relation("ArticleOwner")
   sessions     Session[]
   media        Media[]
   notifications Notification[]
@@ -75,6 +76,10 @@ model Article {
   publishedAt    DateTime?
   views          Int            @default(0)
   reviewNote     String?
+  ownerId        String?        // مالک مسئول صحت اطلاعات (ممکن است غیر از نویسنده باشد)
+  owner          User?          @relation("ArticleOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  reviewAt       DateTime?      // تاریخ بازبینی بعدی محتوا
+  lastReviewedAt DateTime?      // آخرین بار که «اطلاعات معتبر است» تأیید شد
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   versions       ArticleVersion[]
@@ -83,6 +88,8 @@ model Article {
   @@index([status])
   @@index([authorId])
   @@index([publishedAt])
+  @@index([ownerId])
+  @@index([reviewAt])
 }
 
 model ArticleVersion {
@@ -212,4 +219,53 @@ model Setting {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+// ─── مرکز کارها و شخصی‌سازی ─────────────────────────────────────
+
+// کار واگذارشده به کاربر (دستی یا خودکار از گردش کار)
+model Task {
+  id           String    @id @default(cuid())
+  title        String
+  description  String?
+  type         String    @default("GENERAL") // GENERAL | REVIEW | REVISION | HEALTH
+  priority     String    @default("MEDIUM") // LOW | MEDIUM | HIGH
+  status       String    @default("OPEN") // OPEN | DONE | CANCELLED
+  dueDate      DateTime?
+  link         String?   // مسیر داخلی پنل مانند #/articles/x/edit
+  relatedType  String?   // نوع موجودیت مرتبط: ARTICLE | ...
+  relatedId    String?   // شناسه موجودیت مرتبط (برای بستن خودکار کارها)
+  assignedToId String
+  assignedById String?
+  assignedByName String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  doneAt       DateTime?
+
+  @@index([assignedToId, status])
+  @@index([relatedType, relatedId])
+}
+
+// علاقه‌مندی/سنجاق‌شدن صفحه‌ها و رکوردها برای دسترسی سریع (Ctrl+K)
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  itemType  String   // PAGE | ARTICLE | MEDIA | ...
+  itemId    String   // برای صفحه‌های پنل: مسیر مثل /tasks
+  title     String
+  path      String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, itemType, itemId])
+  @@index([userId])
+}
+
+// موارد نادیده‌گرفته‌شده در مرکز سلامت محتوا (با دلیل)
+model HealthIgnore {
+  id          String   @id @default(cuid())
+  issueKey    String   @unique // کلید پایدار مشکل، مانند article-cover:cuid
+  reason      String
+  ignoredById String
+  ignoredByName String
+  createdAt   DateTime @default(now())
 }

@@ -1,0 +1,734 @@
+     1→'use client'
+     2→
+     3→import * as React from 'react'
+     4→import {
+     5→  Activity,
+     6→  Bell,
+     7→  ChevronDown,
+     8→  ChevronLeft,
+     9→  FileText,
+    10→  FolderTree,
+    11→  Gauge,
+    12→  Home,
+    13→  Image as ImageIcon,
+    14→  LayoutList,
+    15→  LogOut,
+    16→  Menu as MenuIcon,
+    17→  MessagesSquare,
+    18→  Moon,
+    19→  Search,
+    20→  Settings,
+    21→  ShieldCheck,
+    22→  Sun,
+    23→  Tags,
+    24→  UserRound,
+    25→  Users,
+    26→  Wrench,
+    27→  X,
+    28→} from 'lucide-react'
+    29→import { useTheme } from 'next-themes'
+    30→import { toast } from 'sonner'
+    31→import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+    32→import { Button } from '@/components/ui/button'
+    33→import {
+    34→  DropdownMenu,
+    35→  DropdownMenuContent,
+    36→  DropdownMenuItem,
+    37→  DropdownMenuLabel,
+    38→  DropdownMenuSeparator,
+    39→  DropdownMenuTrigger,
+    40→} from '@/components/ui/dropdown-menu'
+    41→import { Input } from '@/components/ui/input'
+    42→import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+    43→import { ScrollArea } from '@/components/ui/scroll-area'
+    44→import { Sheet, SheetClose, SheetContent, SheetTitle } from '@/components/ui/sheet'
+    45→import { Badge } from '@/components/ui/badge'
+    46→import { Skeleton } from '@/components/ui/skeleton'
+    47→import { apiGet, apiPost, apiPut } from '@/lib/client/api'
+    48→import { timeAgo, toFa } from '@/lib/client/format'
+    49→import { useAppStore } from '@/store/app-store'
+    50→import { ROLE_LABELS, type Role } from '@/lib/permissions'
+    51→import { cn } from '@/lib/utils'
+    52→
+    53→type NavItem = { label: string; href: string; perm: string | null; icon: React.ElementType }
+    54→type NavGroup = { group: string | null; items: NavItem[] }
+    55→
+    56→const MENU: NavGroup[] = [
+    57→  { group: null, items: [{ label: 'داشبورد', href: '/dashboard', perm: null, icon: Gauge }] },
+    58→  {
+    59→    group: 'محتوا',
+    60→    items: [
+    61→      { label: 'مقالات', href: '/articles', perm: 'articles.view', icon: FileText },
+    62→      { label: 'دسته‌بندی‌ها', href: '/categories', perm: 'categories.manage', icon: FolderTree },
+    63→      { label: 'برچسب‌ها', href: '/tags', perm: 'tags.manage', icon: Tags },
+    64→      { label: 'دیدگاه‌ها', href: '/comments', perm: 'comments.view', icon: MessagesSquare },
+    65→    ],
+    66→  },
+    67→  {
+    68→    group: 'رسانه',
+    69→    items: [{ label: 'کتابخانه فایل‌ها', href: '/media', perm: 'media.view', icon: ImageIcon }],
+    70→  },
+    71→  {
+    72→    group: 'ساختار سایت',
+    73→    items: [
+    74→      { label: 'صفحات', href: '/pages', perm: 'pages.view', icon: LayoutList },
+    75→      { label: 'منوها', href: '/menus', perm: 'menus.manage', icon: ChevronDown },
+    76→    ],
+    77→  },
+    78→  {
+    79→    group: 'کاربران و دسترسی',
+    80→    items: [
+    81→      { label: 'کاربران', href: '/users', perm: 'users.view', icon: Users },
+    82→      { label: 'نقش‌ها و مجوزها', href: '/roles', perm: 'roles.view', icon: ShieldCheck },
+    83→    ],
+    84→  },
+    85→  {
+    86→    group: 'فرم‌ها',
+    87→    items: [{ label: 'پاسخ‌های دریافتی', href: '/forms', perm: 'forms.view', icon: Wrench }],
+    88→  },
+    89→  {
+    90→    group: 'پایش و گزارش',
+    91→    items: [
+    92→      { label: 'گزارش‌ها', href: '/reports', perm: 'reports.view', icon: Activity },
+    93→      { label: 'تاریخچه فعالیت‌ها', href: '/activity', perm: 'activity.view', icon: Activity },
+    94→      { label: 'تنظیمات', href: '/settings', perm: 'settings.view', icon: Settings },
+    95→    ],
+    96→  },
+    97→]
+    98→
+    99→const BREADCRUMBS: Record<string, string> = {
+   100→  '/dashboard': 'داشبورد',
+   101→  '/articles': 'مقالات',
+   102→  '/categories': 'دسته‌بندی‌ها',
+   103→  '/tags': 'برچسب‌ها',
+   104→  '/comments': 'دیدگاه‌ها',
+   105→  '/media': 'کتابخانه فایل‌ها',
+   106→  '/pages': 'صفحات',
+   107→  '/menus': 'منوها',
+   108→  '/users': 'کاربران',
+   109→  '/roles': 'نقش‌ها و مجوزها',
+   110→  '/forms': 'پاسخ‌های دریافتی',
+   111→  '/reports': 'گزارش‌ها',
+   112→  '/activity': 'تاریخچه فعالیت‌ها',
+   113→  '/settings': 'تنظیمات',
+   114→  '/account': 'حساب من',
+   115→}
+   116→
+   117→type SearchResult = {
+   118→  articles: { id: string; title: string; status: string }[]
+   119→  pages: { id: string; title: string; status: string }[]
+   120→  media: { id: string; originalName: string; mimeType: string }[]
+   121→  users: { id: string; name: string; email: string; role: string }[]
+   122→}
+   123→
+   124→type NotificationItem = {
+   125→  id: string
+   126→  type: string
+   127→  title: string
+   128→  body: string
+   129→  link: string | null
+   130→  read: boolean
+   131→  createdAt: string
+   132→}
+   133→
+   134→function initials(name: string): string {
+   135→  const parts = name.trim().split(/\s+/)
+   136→  return (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')
+   137→}
+   138→
+   139→/* ─── محتوای نوار کناری (تم تیره ثابت) ───────────────────────── */
+   140→export function SidebarContent({
+   141→  path,
+   142→  navigate,
+   143→  onNavigate,
+   144→}: {
+   145→  path: string
+   146→  navigate: (to: string) => void
+   147→  onNavigate?: () => void
+   148→}) {
+   149→  const permissions = useAppStore((s) => s.permissions)
+   150→  const can = (perm: string | null) => !perm || permissions.includes(perm)
+   151→
+   152→  const isActive = (href: string) => path === href || path.startsWith(href + '/')
+   153→
+   154→  return (
+   155→    <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground">
+   156→      {/* برند */}
+   157→      <div className="relative px-5 pt-5 pb-4 border-b border-sidebar-border overflow-hidden">
+   158→        <div className="absolute inset-0 bg-gradient-to-l from-primary/15 to-transparent" aria-hidden />
+   159→        <div className="relative flex items-center gap-3">
+   160→          <div className="logo-ring animate-gradient-x h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-chart-3 text-primary-foreground flex items-center justify-center text-lg font-bold shrink-0">
+   161→            پ
+   162→          </div>
+   163→          <div className="min-w-0">
+   164→            <p className="font-bold text-sm leading-5 truncate">پنل مدیریت محتوا</p>
+   165→            <p className="text-[11px] text-sidebar-foreground/55">سامانه عملیاتی محتوا</p>
+   166→          </div>
+   167→        </div>
+   168→      </div>
+   169→
+   170→      {/* منو */}
+   171→      <ScrollArea className="flex-1 px-3 py-4">
+   172→        <nav aria-label="منوی اصلی" className="space-y-6">
+   173→          {MENU.map((group, gi) => {
+   174→            const visibleItems = group.items.filter((it) => can(it.perm))
+   175→            if (visibleItems.length === 0) return null
+   176→            return (
+   177→              <div key={group.group ?? gi}>
+   178→                {group.group ? (
+   179→                  <p className="text-[10px] font-semibold tracking-widest text-sidebar-foreground/40 px-3 mb-2">
+   180→                    {group.group}
+   181→                  </p>
+   182→                ) : null}
+   183→                <ul className="space-y-1">
+   184→                  {visibleItems.map((item) => {
+   185→                    const Icon = item.icon
+   186→                    const active = isActive(item.href)
+   187→                    return (
+   188→                      <li key={item.href} className="relative">
+   189→                        {/* نشانگر فعال */}
+   190→                        {active ? (
+   191→                          <span
+   192→                            className="absolute inset-y-1.5 start-0 w-1 rounded-full bg-gradient-to-b from-primary to-chart-3"
+   193→                            aria-hidden
+   194→                          />
+   195→                        ) : null}
+   196→                        <button
+   197→                          type="button"
+   198→                          onClick={() => {
+   199→                            navigate(item.href)
+   200→                            onNavigate?.()
+   201→                          }}
+   202→                          aria-current={active ? 'page' : undefined}
+   203→                          className={cn(
+   204→                            'group w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm transition-all text-start',
+   205→                            active
+   206→                              ? 'bg-sidebar-primary/20 text-sidebar-primary-foreground font-semibold shadow-sm'
+   207→                              : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-foreground/5'
+   208→                          )}
+   209→                        >
+   210→                          <Icon
+   211→                            className={cn(
+   212→                              'h-4 w-4 shrink-0 transition-colors',
+   213→                              active ? 'text-chart-2' : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80'
+   214→                            )}
+   215→                            aria-hidden
+   216→                          />
+   217→                          {item.label}
+   218→                          {active ? <ChevronLeft className="h-3.5 w-3.5 ms-auto text-chart-2/70" aria-hidden /> : null}
+   219→                        </button>
+   220→                      </li>
+   221→                    )
+   222→                  })}
+   223→                </ul>
+   224→              </div>
+   225→            )
+   226→          })}
+   227→          <div>
+   228→            <p className="text-[10px] font-semibold tracking-widest text-sidebar-foreground/40 px-3 mb-2">حساب</p>
+   229→            <ul>
+   230→              <li className="relative">
+   231→                {path.startsWith('/account') ? (
+   232→                  <span
+   233→                    className="absolute inset-y-1.5 start-0 w-1 rounded-full bg-gradient-to-b from-primary to-chart-3"
+   234→                    aria-hidden
+   235→                  />
+   236→                ) : null}
+   237→                <button
+   238→                  type="button"
+   239→                  onClick={() => {
+   240→                    navigate('/account')
+   241→                    onNavigate?.()
+   242→                  }}
+   243→                  aria-current={path.startsWith('/account') ? 'page' : undefined}
+   244→                  className={cn(
+   245→                    'group w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm transition-all text-start',
+   246→                    path.startsWith('/account')
+   247→                      ? 'bg-sidebar-primary/20 text-sidebar-primary-foreground font-semibold shadow-sm'
+   248→                      : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-foreground/5'
+   249→                  )}
+   250→                >
+   251→                  <UserRound
+   252→                    className={cn(
+   253→                      'h-4 w-4 shrink-0',
+   254→                      path.startsWith('/account') ? 'text-chart-2' : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80'
+   255→                    )}
+   256→                    aria-hidden
+   257→                  />
+   258→                  حساب من
+   259→                </button>
+   260→              </li>
+   261→            </ul>
+   262→          </div>
+   263→        </nav>
+   264→      </ScrollArea>
+   265→
+   266→      {/* پانویس نوار کناری */}
+   267→      <div className="border-t border-sidebar-border px-5 py-3.5">
+   268→        <div className="flex items-center gap-2 text-[11px] text-sidebar-foreground/45">
+   269→          <span className="h-1.5 w-1.5 rounded-full bg-chart-2 shadow-[0_0_8px_oklch(0.75_0.135_80)]" aria-hidden />
+   270→          نسخه {toFa(2, { maximumFractionDigits: 0 })} — طراحی زمردی
+   271→        </div>
+   272→      </div>
+   273→    </div>
+   274→  )
+   275→}
+   276→
+   277→/* ─── اعلان‌ها ───────────────────────────────────────────────── */
+   278→function NotificationsBell() {
+   279→  const [open, setOpen] = React.useState(false)
+   280→  const [items, setItems] = React.useState<NotificationItem[]>([])
+   281→  const [loading, setLoading] = React.useState(false)
+   282→  const unreadCount = useAppStore((s) => s.unreadCount)
+   283→  const setUnreadCount = useAppStore((s) => s.setUnreadCount)
+   284→
+   285→  const load = React.useCallback(async () => {
+   286→    setLoading(true)
+   287→    try {
+   288→      const res = await apiGet<{ items: NotificationItem[]; unreadCount: number }>('/api/notifications?pageSize=15')
+   289→      setItems(res.items)
+   290→      setUnreadCount(res.unreadCount)
+   291→    } catch {
+   292→      // بی‌صدا: اعلان حیاتی نیست
+   293→    } finally {
+   294→      setLoading(false)
+   295→    }
+   296→  }, [setUnreadCount])
+   297→
+   298→  React.useEffect(() => {
+   299→    load()
+   300→    const t = setInterval(load, 30000)
+   301→    return () => clearInterval(t)
+   302→  }, [load])
+   303→
+   304→  const markRead = async (id?: string) => {
+   305→    try {
+   306→      await apiPut('/api/notifications/read', id ? { ids: [id] } : { all: true })
+   307→      await load()
+   308→    } catch {
+   309→      toast.error('ثبت وضعیت اعلان ناموفق بود.')
+   310→    }
+   311→  }
+   312→
+   313→  return (
+   314→    <Popover open={open} onOpenChange={setOpen}>
+   315→      <PopoverTrigger asChild>
+   316→        <Button
+   317→          variant="ghost"
+   318→          size="icon"
+   319→          className="relative rounded-xl hover:bg-muted"
+   320→          aria-label={`اعلان‌ها${unreadCount ? `، ${toFa(unreadCount)} خوانده‌نشده` : ''}`}
+   321→        >
+   322→          <Bell className="h-5 w-5" />
+   323→          {unreadCount > 0 ? (
+   324→            <span className="absolute -top-0.5 -end-0.5 h-4.5 min-w-4.5 rounded-full bg-gradient-to-br from-destructive to-chart-4 text-[10px] leading-4 text-white flex items-center justify-center px-1 shadow-sm">
+   325→              {unreadCount > 9 ? '۹+' : toFa(unreadCount)}
+   326→            </span>
+   327→          ) : null}
+   328→        </Button>
+   329→      </PopoverTrigger>
+   330→      <PopoverContent align="end" className="w-96 p-0 rounded-2xl" dir="rtl">
+   331→        <div className="flex items-center justify-between px-4 py-3 border-b">
+   332→          <p className="font-semibold text-sm flex items-center gap-2">
+   333→            اعلان‌ها
+   334→            {unreadCount > 0 ? (
+   335→              <span className="rounded-full bg-primary/10 text-primary text-[10px] px-2 py-0.5 font-semibold">
+   336→                {toFa(unreadCount)} جدید
+   337→              </span>
+   338→            ) : null}
+   339→          </p>
+   340→          {unreadCount > 0 ? (
+   341→            <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => markRead()}>
+   342→              خواندن همه
+   343→            </Button>
+   344→          ) : null}
+   345→        </div>
+   346→        <ScrollArea className="h-80">
+   347→          {loading && items.length === 0 ? (
+   348→            <div className="p-4 space-y-3">
+   349→              {Array.from({ length: 3 }).map((_, i) => (
+   350→                <Skeleton key={i} className="h-12 w-full rounded-xl" />
+   351→              ))}
+   352→            </div>
+   353→          ) : items.length === 0 ? (
+   354→            <p className="text-sm text-muted-foreground text-center py-10">اعلانی وجود ندارد.</p>
+   355→          ) : (
+   356→            <ul className="divide-y">
+   357→              {items.map((n) => (
+   358→                <li key={n.id}>
+   359→                  <button
+   360→                    type="button"
+   361→                    className={cn('w-full text-start px-4 py-3 hover:bg-muted/60 transition', !n.read && 'bg-primary/5')}
+   362→                    onClick={() => {
+   363→                      if (!n.read) markRead(n.id)
+   364→                      setOpen(false)
+   365→                      if (n.link) window.location.hash = n.link.replace(/^#/, '')
+   366→                    }}
+   367→                  >
+   368→                    <div className="flex items-start justify-between gap-2">
+   369→                      <p className={cn('text-sm leading-5', !n.read && 'font-semibold')}>{n.title}</p>
+   370→                      {!n.read ? <span className="h-2 w-2 rounded-full bg-primary mt-1.5 shrink-0" aria-label="خوانده‌نشده" /> : null}
+   371→                    </div>
+   372→                    {n.body ? <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{n.body}</p> : null}
+   373→                    <p className="text-[11px] text-muted-foreground mt-1">{timeAgo(n.createdAt)}</p>
+   374→                  </button>
+   375→                </li>
+   376→              ))}
+   377→            </ul>
+   378→          )}
+   379→        </ScrollArea>
+   380→      </PopoverContent>
+   381→    </Popover>
+   382→  )
+   383→}
+   384→
+   385→/* ─── جست‌وجوی سراسری ────────────────────────────────────────── */
+   386→function GlobalSearch() {
+   387→  const [q, setQ] = React.useState('')
+   388→  const [results, setResults] = React.useState<SearchResult | null>(null)
+   389→  const [open, setOpen] = React.useState(false)
+   390→  const [loading, setLoading] = React.useState(false)
+   391→  const boxRef = React.useRef<HTMLDivElement>(null)
+   392→
+   393→  React.useEffect(() => {
+   394→    if (q.trim().length < 2) {
+   395→      setResults(null)
+   396→      setOpen(false)
+   397→      return
+   398→    }
+   399→    const t = setTimeout(async () => {
+   400→      setLoading(true)
+   401→      try {
+   402→        const res = await apiGet<SearchResult>(`/api/search?q=${encodeURIComponent(q.trim())}`)
+   403→        setResults(res)
+   404→        setOpen(true)
+   405→      } catch {
+   406→        setResults(null)
+   407→      } finally {
+   408→        setLoading(false)
+   409→      }
+   410→    }, 300)
+   411→    return () => clearTimeout(t)
+   412→  }, [q])
+   413→
+   414→  React.useEffect(() => {
+   415→    const onDown = (e: MouseEvent) => {
+   416→      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false)
+   417→    }
+   418→    document.addEventListener('mousedown', onDown)
+   419→    return () => document.removeEventListener('mousedown', onDown)
+   420→  }, [])
+   421→
+   422→  const go = (hash: string) => {
+   423→    setOpen(false)
+   424→    setQ('')
+   425→    window.location.hash = hash.replace(/^#/, '')
+   426→  }
+   427→
+   428→  const hasResults = results && results.articles.length + results.pages.length + results.media.length + results.users.length > 0
+   429→
+   430→  return (
+   431→    <div ref={boxRef} className="relative w-full max-w-sm hidden md:block" role="search">
+   432→      <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" aria-hidden />
+   433→      <Input
+   434→        value={q}
+   435→        onChange={(e) => setQ(e.target.value)}
+   436→        onFocus={() => {
+   437→          if (q.trim().length >= 2 && results) setOpen(true)
+   438→        }}
+   439→        placeholder="جست‌وجوی سراسری…"
+   440→        className="ps-9 rounded-xl bg-muted/60 border-transparent focus-visible:bg-background focus-visible:border-ring h-9.5"
+   441→        aria-label="جست‌وجوی سراسری"
+   442→      />
+   443→      {open ? (
+   444→        <div className="absolute top-full mt-2 w-full rounded-2xl border bg-popover shadow-lg z-50 overflow-hidden">
+   445→          {loading ? (
+   446→            <p className="text-sm text-muted-foreground p-4">در حال جست‌وجو…</p>
+   447→          ) : !hasResults ? (
+   448→            <p className="text-sm text-muted-foreground p-4">نتیجه‌ای یافت نشد.</p>
+   449→          ) : (
+   450→            <ScrollArea className="max-h-80">
+   451→              <div className="p-2 space-y-3">
+   452→                {results!.articles.length > 0 ? (
+   453→                  <div>
+   454→                    <p className="text-xs font-medium text-muted-foreground px-2 py-1">مقالات</p>
+   455→                    {results!.articles.map((a) => (
+   456→                      <button
+   457→                        key={a.id}
+   458→                        type="button"
+   459→                        onClick={() => go(`#/articles/${a.id}/edit`)}
+   460→                        className="w-full text-start px-2 py-1.5 rounded-lg hover:bg-muted text-sm flex items-center justify-between gap-2"
+   461→                      >
+   462→                        <span className="truncate">{a.title}</span>
+   463→                        <span className="text-[10px] text-muted-foreground shrink-0">مقاله</span>
+   464→                      </button>
+   465→                    ))}
+   466→                  </div>
+   467→                ) : null}
+   468→                {results!.pages.length > 0 ? (
+   469→                  <div>
+   470→                    <p className="text-xs font-medium text-muted-foreground px-2 py-1">صفحات</p>
+   471→                    {results!.pages.map((p) => (
+   472→                      <button
+   473→                        key={p.id}
+   474→                        type="button"
+   475→                        onClick={() => go('#/pages')}
+   476→                        className="w-full text-start px-2 py-1.5 rounded-lg hover:bg-muted text-sm flex items-center justify-between gap-2"
+   477→                      >
+   478→                        <span className="truncate">{p.title}</span>
+   479→                        <span className="text-[10px] text-muted-foreground shrink-0">صفحه</span>
+   480→                      </button>
+   481→                    ))}
+   482→                  </div>
+   483→                ) : null}
+   484→                {results!.media.length > 0 ? (
+   485→                  <div>
+   486→                    <p className="text-xs font-medium text-muted-foreground px-2 py-1">رسانه</p>
+   487→                    {results!.media.map((m) => (
+   488→                      <button
+   489→                        key={m.id}
+   490→                        type="button"
+   491→                        onClick={() => go('#/media')}
+   492→                        className="w-full text-start px-2 py-1.5 rounded-lg hover:bg-muted text-sm flex items-center justify-between gap-2"
+   493→                      >
+   494→                        <span className="truncate">{m.originalName}</span>
+   495→                        <span className="text-[10px] text-muted-foreground shrink-0">فایل</span>
+   496→                      </button>
+   497→                    ))}
+   498→                  </div>
+   499→                ) : null}
+   500→                {results!.users.length > 0 ? (
+   501→                  <div>
+   502→                    <p className="text-xs font-medium text-muted-foreground px-2 py-1">کاربران</p>
+   503→                    {results!.users.map((u) => (
+   504→                      <button
+   505→                        key={u.id}
+   506→                        type="button"
+   507→                        onClick={() => go('#/users')}
+   508→                        className="w-full text-start px-2 py-1.5 rounded-lg hover:bg-muted text-sm flex items-center justify-between gap-2"
+   509→                      >
+   510→                        <span className="truncate">{u.name}</span>
+   511→                        <span className="text-[10px] text-muted-foreground shrink-0">کاربر</span>
+   512→                      </button>
+   513→                    ))}
+   514→                  </div>
+   515→                ) : null}
+   516→              </div>
+   517→            </ScrollArea>
+   518→          )}
+   519→        </div>
+   520→      ) : null}
+   521→    </div>
+   522→  )
+   523→}
+   524→
+   525→/* ─── تغییر تم ───────────────────────────────────────────────── */
+   526→function ThemeToggle() {
+   527→  const { theme, setTheme } = useTheme()
+   528→  const [mounted, setMounted] = React.useState(false)
+   529→  React.useEffect(() => setMounted(true), [])
+   530→  return (
+   531→    <Button
+   532→      variant="ghost"
+   533→      size="icon"
+   534→      className="rounded-xl hover:bg-muted"
+   535→      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+   536→      aria-label={mounted && theme === 'dark' ? 'تغییر به حالت روشن' : 'تغییر به حالت تیره'}
+   537→    >
+   538→      {mounted && theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+   539→    </Button>
+   540→  )
+   541→}
+   542→
+   543→/* ─── منوی کاربر ─────────────────────────────────────────────── */
+   544→function UserMenu() {
+   545→  const user = useAppStore((s) => s.user)
+   546→  const logout = useAppStore((s) => s.logout)
+   547→  if (!user) return null
+   548→  const doLogout = async () => {
+   549→    try {
+   550→      await apiPost('/api/auth/logout')
+   551→    } catch {
+   552→      // حتی در صورت خطا، از پنل خارج می‌شویم
+   553→    }
+   554→    logout()
+   555→    toast.success('با موفقیت خارج شدید.')
+   556→  }
+   557→  return (
+   558→    <DropdownMenu>
+   559→      <DropdownMenuTrigger asChild>
+   560→        <button
+   561→          type="button"
+   562→          className="flex items-center gap-2 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted p-1 ps-2 transition-colors"
+   563→          aria-label="منوی حساب کاربری"
+   564→        >
+   565→          <Avatar className="h-8 w-8 ring-2 ring-primary/20">
+   566→            <AvatarFallback className="bg-gradient-to-br from-primary to-chart-3 text-primary-foreground text-xs font-bold">
+   567→              {initials(user.name)}
+   568→            </AvatarFallback>
+   569→          </Avatar>
+   570→          <span className="hidden lg:inline text-sm font-medium">{user.name}</span>
+   571→          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground hidden lg:inline" aria-hidden />
+   572→        </button>
+   573→      </DropdownMenuTrigger>
+   574→      <DropdownMenuContent align="end" className="w-56 rounded-xl">
+   575→        <DropdownMenuLabel>
+   576→          <p className="font-semibold">{user.name}</p>
+   577→          <p className="text-xs text-muted-foreground font-normal text-start" dir="ltr">
+   578→            {user.email}
+   579→          </p>
+   580→          <Badge variant="secondary" className="mt-1.5 pointer-events-none bg-primary/10 text-primary">
+   581→            {ROLE_LABELS[user.role as Role] ?? user.role}
+   582→          </Badge>
+   583→        </DropdownMenuLabel>
+   584→        <DropdownMenuSeparator />
+   585→        <DropdownMenuItem onClick={() => (window.location.hash = '/account')}>
+   586→          <UserRound className="h-4 w-4 me-2" />
+   587→          پروفایل و امنیت
+   588→        </DropdownMenuItem>
+   589→        <DropdownMenuItem variant="destructive" onClick={doLogout}>
+   590→          <LogOut className="h-4 w-4 me-2" />
+   591→          خروج از حساب
+   592→        </DropdownMenuItem>
+   593→      </DropdownMenuContent>
+   594→    </DropdownMenu>
+   595→  )
+   596→}
+   597→
+   598→/* ─── پوسته اصلی پنل ─────────────────────────────────────────── */
+   599→export function AdminShell({
+   600→  path,
+   601→  navigate,
+   602→  children,
+   603→}: {
+   604→  path: string
+   605→  navigate: (to: string) => void
+   606→  children: React.ReactNode
+   607→}) {
+   608→  const [mobileOpen, setMobileOpen] = React.useState(false)
+   609→
+   610→  const base = '/' + (path.split('/').filter(Boolean)[0] ?? 'dashboard')
+   611→  const crumb = BREADCRUMBS[base] ?? 'پنل مدیریت'
+   612→  const deepLabels: Record<string, string> = {
+   613→    '/articles/new': 'مقاله جدید',
+   614→    '/account/security': 'امنیت',
+   615→  }
+   616→  const subCrumb =
+   617→    path.startsWith('/articles/') && path !== '/articles'
+   618→      ? path === '/articles/new'
+   619→        ? 'مقاله جدید'
+   620→        : 'ویرایش مقاله'
+   621→      : deepLabels[path]
+   622→
+   623→  return (
+   624→    <div className="min-h-screen flex flex-col bg-background">
+   625→      <a
+   626→        href="#main-content"
+   627→        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:start-2 focus:z-[100] focus:bg-primary focus:text-primary-foreground focus:px-3 focus:py-1.5 focus:rounded-md"
+   628→      >
+   629→        پرش به محتوای اصلی
+   630→      </a>
+   631→      <div className="flex flex-1 min-h-0">
+   632→        {/* نوار کناری تیره — دسکتاپ */}
+   633→        <aside className="hidden lg:block w-64 shrink-0" aria-label="نوار کناری">
+   634→          <div className="sticky top-0 h-screen shadow-[-8px_0_32px_-16px_oklch(0.2_0.03_168/0.35)]">
+   635→            <SidebarContent path={path} navigate={navigate} />
+   636→          </div>
+   637→        </aside>
+   638→
+   639→        {/* نوار کناری — موبایل */}
+   640→        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+   641→          <SheetContent side="right" className="p-0 w-72 border-s-0 [&>button:last-of-type]:hidden" dir="rtl">
+   642→            <SheetTitle className="sr-only">منوی اصلی</SheetTitle>
+   643→            <SidebarContent path={path} navigate={navigate} onNavigate={() => setMobileOpen(false)} />
+   644→            <SheetClose asChild>
+   645→              <button
+   646→                type="button"
+   647→                className="absolute top-3.5 end-3 z-30 rounded-lg bg-sidebar-foreground/10 p-1.5 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-foreground/20 transition-colors"
+   648→                aria-label="بستن منو"
+   649→              >
+   650→                <X className="h-4 w-4" />
+   651→              </button>
+   652→            </SheetClose>
+   653→          </SheetContent>
+   654→        </Sheet>
+   655→
+   656→        <div className="flex-1 flex flex-col min-w-0">
+   657→          {/* سربرگ شیشه‌ای */}
+   658→          <header className="sticky top-0 z-40 glass border-b">
+   659→            <div className="flex items-center gap-2 px-4 h-16">
+   660→              <Button
+   661→                variant="ghost"
+   662→                size="icon"
+   663→                className="lg:hidden rounded-xl"
+   664→                aria-label="بازکردن منو"
+   665→                onClick={() => setMobileOpen(true)}
+   666→              >
+   667→                <MenuIcon className="h-5 w-5" />
+   668→              </Button>
+   669→
+   670→              {/* مسیر راهنما درون هدر */}
+   671→              <nav
+   672→                aria-label="مسیر راهنما"
+   673→                className="hidden sm:flex items-center gap-1.5 text-sm text-muted-foreground min-w-0"
+   674→              >
+   675→                <span className="rounded-lg bg-muted/70 p-1.5 text-primary shrink-0" aria-hidden>
+   676→                  <Home className="h-3.5 w-3.5" />
+   677→                </span>
+   678→                <span className="truncate">{crumb}</span>
+   679→                {subCrumb ? (
+   680→                  <>
+   681→                    <ChevronLeft className="h-3.5 w-3.5 shrink-0 opacity-50" aria-hidden />
+   682→                    <span className="text-foreground font-semibold truncate">{subCrumb}</span>
+   683→                  </>
+   684→                ) : null}
+   685→              </nav>
+   686→
+   687→              <div className="flex-1" />
+   688→              <GlobalSearch />
+   689→              <div className="h-6 w-px bg-border mx-1 hidden md:block" aria-hidden />
+   690→              <NotificationsBell />
+   691→              <ThemeToggle />
+   692→              <UserMenu />
+   693→            </div>
+   694→          </header>
+   695→
+   696→          {/* محتوای اصلی روی پس‌زمینه ملایم */}
+   697→          <main
+   698→            id="main-content"
+   699→            className="relative flex-1 px-4 lg:px-8 py-6 pb-10 w-full max-w-7xl mx-auto"
+   700→          >
+   701→            <div
+   702→              className="pointer-events-none absolute top-0 inset-x-0 h-48 bg-gradient-to-b from-primary/5 to-transparent"
+   703→              aria-hidden
+   704→            />
+   705→            <div className="relative">{children}</div>
+   706→          </main>
+   707→
+   708→          {/* فوتر چسبان */}
+   709→          <footer className="mt-auto border-t bg-card/60">
+   710→            <div className="px-4 lg:px-8 h-12 flex items-center justify-between gap-4 text-xs text-muted-foreground">
+   711→              <p className="flex items-center gap-2">
+   712→                <span
+   713→                  className="h-4.5 w-4.5 rounded-md bg-gradient-to-br from-primary to-chart-3 flex items-center justify-center text-primary-foreground text-[9px] font-bold"
+   714→                  aria-hidden
+   715→                >
+   716→                  پ
+   717→                </span>
+   718→                پنل مدیریت محتوا — سامانه عملیاتی تولید و انتشار
+   719→              </p>
+   720→              <p className="flex items-center gap-1.5">
+   721→                <span className="relative flex h-2 w-2" aria-hidden>
+   722→                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-40" />
+   723→                  <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+   724→                </span>
+   725→                سرویس فعال
+   726→              </p>
+   727→            </div>
+   728→          </footer>
+   729→        </div>
+   730→      </div>
+   731→    </div>
+   732→  )
+   733→}
+   734→

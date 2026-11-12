@@ -20,7 +20,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { DataTable, type Column } from '@/components/shared/data-table'
-import { PageHeader, Field, ConfirmDialog, ErrorState } from '@/components/shared/ui-bits'
+import { ImpactDialog } from '@/components/shared/impact-dialog'
+import { PageHeader, Field, ErrorState } from '@/components/shared/ui-bits'
 import { apiGet, apiPost, apiDelete } from '@/lib/client/api'
 import { toFa } from '@/lib/client/format'
 import { useCan } from '@/store/app-store'
@@ -48,7 +49,6 @@ export function TagsView() {
 
   // حذف
   const [deleteTarget, setDeleteTarget] = React.useState<Tag | null>(null)
-  const [deleting, setDeleting] = React.useState(false)
 
   const load = React.useCallback(async () => {
     setLoading(true)
@@ -89,17 +89,9 @@ export function TagsView() {
 
   const confirmDelete = async () => {
     if (!deleteTarget) return
-    setDeleting(true)
-    try {
-      await apiDelete(`/api/tags/${deleteTarget.id}`)
-      toast.success('برچسب حذف شد.')
-      setDeleteTarget(null)
-      load()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'حذف برچسب ناموفق بود.')
-    } finally {
-      setDeleting(false)
-    }
+    await apiDelete(`/api/tags/${deleteTarget.id}`)
+    toast.success('برچسب حذف شد.')
+    setDeleteTarget(null)
   }
 
   const columns: Column<Tag>[] = [
@@ -219,15 +211,11 @@ export function TagsView() {
       </Dialog>
 
       {/* تأیید حذف */}
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onOpenChange={(o) => !o && setDeleteTarget(null)}
-        title="حذف برچسب"
-        description={`آیا از حذف «${deleteTarget?.name ?? ''}» مطمئن هستید؟ این برچسب از همه مقالات حذف خواهد شد.`}
-        confirmLabel="حذف برچسب"
-        destructive
-        loading={deleting}
-        onConfirm={confirmDelete}
+      <ImpactDialog
+        target={deleteTarget ? { type: 'tag', id: deleteTarget.id, name: deleteTarget.name } : null}
+        onClose={() => setDeleteTarget(null)}
+        onDelete={confirmDelete}
+        onDeleted={load}
       />
     </div>
   )

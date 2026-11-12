@@ -23,6 +23,7 @@ import { roleHasPermission } from '@/lib/permissions'
 /** include مشترک برای پاسخ جزئیات مقاله */
 const detailInclude = {
   author: { select: { id: true, name: true } },
+  owner: { select: { id: true, name: true } },
   category: { select: { id: true, name: true, color: true } },
   tags: { select: { tag: { select: { id: true, name: true, slug: true } } } },
   versions: {
@@ -55,6 +56,8 @@ interface ArticleUpdateBody {
   seoTitle?: unknown
   seoDescription?: unknown
   noindex?: unknown
+  ownerId?: unknown
+  reviewAt?: unknown
   baseUpdatedAt?: unknown
 }
 
@@ -167,6 +170,29 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
     if (body.noindex !== undefined) {
       data.noindex = vBoolean(body.noindex)
+    }
+
+    // مالک مسئول صحت اطلاعات
+    if (body.ownerId !== undefined) {
+      if (body.ownerId === null || body.ownerId === '') {
+        data.ownerId = null
+      } else {
+        const owner = await db.user.findUnique({ where: { id: String(body.ownerId) }, select: { id: true, status: true } })
+        if (!owner) throw new ApiError(400, 'مالک انتخاب‌شده معتبر نیست.')
+        if (owner.status !== 'ACTIVE') throw new ApiError(400, 'مالک محتوا باید کاربر فعالی باشد.')
+        data.ownerId = owner.id
+      }
+    }
+
+    // موعد بازبینی بعدی
+    if (body.reviewAt !== undefined) {
+      if (body.reviewAt === null || body.reviewAt === '') {
+        data.reviewAt = null
+      } else {
+        const d = new Date(String(body.reviewAt))
+        if (Number.isNaN(d.getTime())) throw new ApiError(400, 'تاریخ بازبینی نامعتبر است.')
+        data.reviewAt = d
+      }
     }
 
     const replaceTags = body.tagIds !== undefined && body.tagIds !== null

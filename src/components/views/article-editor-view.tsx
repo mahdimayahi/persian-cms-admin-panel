@@ -50,7 +50,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { StatusBadge, LoadingSpinner, ErrorState, Field, ConfirmDialog } from '@/components/shared/ui-bits'
 import { MediaPickerDialog, mediaUrl } from '@/components/shared/media-picker'
 import { apiGet, apiPost, apiPut, ApiError } from '@/lib/client/api'
-import { timeAgo, toFa, faDateTime } from '@/lib/client/format'
+import { timeAgo, toFa, faDateTime, faDate } from '@/lib/client/format'
 import { useAppStore, useCan } from '@/store/app-store'
 import { articleStatusInfo, TRANSITION_LABELS, type TransitionAction } from '@/lib/constants'
 import { navigate, useHashRoute } from '@/hooks/use-hash-route'
@@ -73,6 +73,10 @@ type ArticleDetail = {
   publishedAt: string | null
   views: number
   reviewNote: string | null
+  ownerId: string | null
+  owner: { id: string; name: string } | null
+  reviewAt: string | null
+  lastReviewedAt: string | null
   createdAt: string
   updatedAt: string
   author: { id: string; name: string }
@@ -155,6 +159,14 @@ export function ArticleEditorView() {
   const [seoDescription, setSeoDescription] = React.useState('')
   const [noindex, setNoindex] = React.useState(false)
 
+  // مالکیت و بازبینی محتوا
+  const [assignableUsers, setAssignableUsers] = React.useState<{ id: string; name: string; roleLabel: string }[]>([])
+  const [ownerId, setOwnerId] = React.useState('')
+  const [reviewDate, setReviewDate] = React.useState('')
+  const [savingOwnership, setSavingOwnership] = React.useState(false)
+  const [confirmMonths, setConfirmMonths] = React.useState('6')
+  const [confirmingValidity, setConfirmingValidity] = React.useState(false)
+
   const [saving, setSaving] = React.useState(false)
   const [dirty, setDirty] = React.useState(false)
   const [lastSavedAt, setLastSavedAt] = React.useState<string | null>(null)
@@ -226,6 +238,8 @@ export function ArticleEditorView() {
     setSeoTitle(a.seoTitle ?? '')
     setSeoDescription(a.seoDescription ?? '')
     setNoindex(!!a.noindex)
+    setOwnerId(a.ownerId ?? '')
+    setReviewDate(a.reviewAt ? a.reviewAt.slice(0, 10) : '')
     baseUpdatedAtRef.current = a.updatedAt
     setLastSavedAt(a.updatedAt)
   }, [])
@@ -280,6 +294,8 @@ export function ArticleEditorView() {
       setSeoTitle('')
       setSeoDescription('')
       setNoindex(false)
+      setOwnerId('')
+      setReviewDate('')
       baseUpdatedAtRef.current = null
       setLastSavedAt(null)
       setDirty(false)
@@ -309,6 +325,11 @@ export function ArticleEditorView() {
       })
     apiGet<TagRow[]>('/api/tags')
       .then(setAllTags)
+      .catch(() => {
+        /* اختیاری */
+      })
+    apiGet<{ items: { id: string; name: string; roleLabel: string }[] }>('/api/users/assignable')
+      .then((res) => setAssignableUsers(res.items))
       .catch(() => {
         /* اختیاری */
       })
@@ -478,6 +499,43 @@ export function ArticleEditorView() {
     })
   }
 
+  // ─── مالکیت و بازبینی ──────────────────────────────────────────
+  const saveOwnership = async () => {
+    if (!editingId) return
+    setSavingOwnership(true)
+    try {
+      const updated = await apiPut<ArticleDetail>(`/api/articles/${editingId}`, {
+        ownerId: ownerId || null,
+        reviewAt: reviewDate || null,
+      })
+      applyArticle(updated)
+      toast.success('مالکیت و موعد بازبینی ذخیره شد.')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'ذخیره مالکیت ناموفق بود.')
+    } finally {
+      setSavingOwnership(false)
+    }
+  }
+
+  const confirmValidity = async () => {
+    if (!editingId) {
+      toast.error('برای تأیید اعتبار، ابتدا مقاله را ذخیره کنید.')
+      return
+    }
+    setConfirmingValidity(true)
+    try {
+      const updated = await apiPost<ArticleDetail>(`/api/articles/${editingId}/confirm-review`, {
+        months: Number(confirmMonths),
+      })
+      applyArticle(updated)
+      toast.success('اعتبار اطلاعات تأیید شد؛ موعد بازبینی تمدید گردید.')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'تأیید اعتبار ناموفق بود.')
+    } finally {
+      setConfirmingValidity(false)
+    }
+  }
+
   // ─── وضعیت‌های مشتق‌شده ────────────────────────────────────────
   const statusInfo = article ? articleStatusInfo(article.status) : null
   const isOwnArticle = !!article && !!user && article.authorId === user.id
@@ -485,6 +543,17 @@ export function ArticleEditorView() {
   const blockedForOwn =
     !canEditAny && !!article && (article.status === 'PUBLISHED' || article.status === 'ARCHIVED')
   const readonly = !!article && !(canEditAny || (can('articles.edit.own') && isOwnArticle && !blockedForOwn))
+
+  // موانع انتشار: علت عدم آمادگی برای گردش کار را شفاف نشان می‌دهیم
+  const publishBlockers = React.useMemo(() => {
+    const list: string[] = []
+    if (!categoryId.trim()) list.push('دسته‌بندی')
+    if (!coverImageId) list.push('تصویر شاخص')
+    if (!excerpt.trim()) list.push('خلاصه')
+    return list
+  }, [categoryId, coverImageId, excerpt])
+
+  const reviewOverdue = !!article?.reviewAt && new Date(article.reviewAt).getTime() < Date.now()
 
   const canRestoreVersions =
     !!editingId &&
@@ -697,6 +766,18 @@ export function ArticleEditorView() {
                     </Alert>
                   ) : null}
 
+                  {/* راهنمای درون‌برنامه‌ای: علت عدم آمادگی برای انتشار */}
+                  {publishBlockers.length > 0 && (statusInfo?.value === 'DRAFT' || statusInfo?.value === 'APPROVED') ? (
+                    <Alert className="border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200 [&>svg]:text-amber-600">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertTitle className="text-sm">برای گذر روان از گردش کار</AlertTitle>
+                      <AlertDescription className="text-xs leading-5">
+                        ابتدا این موارد را تکمیل کنید: <span className="font-semibold">{publishBlockers.join('، ')}</span>.
+                        مقاله بدون این موارد قابل ارسال است، اما کیفیت انتشار پایین می‌آید.
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
+
                   {transitions.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
                       {editingId ? 'در وضعیت فعلی اقدامی برای گردش کار در دسترس شما نیست.' : 'برای استفاده از گردش کار، ابتدا مقاله را ذخیره کنید.'}
@@ -755,6 +836,99 @@ export function ArticleEditorView() {
                       </div>
                     </div>
                   ) : null}
+                </CardContent>
+              </Card>
+
+              {/* مالکیت و بازبینی محتوا */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold">مالکیت و بازبینی</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Field
+                    label="مالک مسئول صحت اطلاعات"
+                    htmlFor="owner-select"
+                    hint="فردی که پاسخ‌گوی به‌روز بودن این محتوا است (ممکن است غیر از نویسنده باشد)."
+                  >
+                    <Select
+                      value={ownerId || 'none'}
+                      onValueChange={(v) => setOwnerId(v === 'none' ? '' : v)}
+                      disabled={readonly}
+                    >
+                      <SelectTrigger id="owner-select" className="w-full">
+                        <SelectValue placeholder="انتخاب مالک" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">بدون مالک مشخص</SelectItem>
+                        {assignableUsers.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.name} ({u.roleLabel})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+
+                  <Field
+                    label="موعد بازبینی بعدی"
+                    htmlFor="review-date"
+                    hint={reviewDate ? `بازبینی در تاریخ ${faDate(reviewDate + 'T00:00:00Z')}` : 'پس از این تاریخ، محتوا در مرکز کارهای مالک یادآوری می‌شود.'}
+                  >
+                    <Input
+                      id="review-date"
+                      type="date"
+                      dir="ltr"
+                      value={reviewDate}
+                      onChange={(e) => setReviewDate(e.target.value)}
+                      disabled={readonly}
+                      aria-label="موعد بازبینی بعدی"
+                    />
+                  </Field>
+
+                  {reviewOverdue ? (
+                    <p className="text-xs font-medium text-rose-600 dark:text-rose-400">
+                      بازبینی این محتوا از موعد گذشته است.
+                    </p>
+                  ) : null}
+                  {article?.lastReviewedAt ? (
+                    <p className="text-xs text-muted-foreground">
+                      آخرین تأیید اعتبار: {faDateTime(article.lastReviewedAt)}
+                    </p>
+                  ) : null}
+
+                  {!readonly ? (
+                    <Button size="sm" onClick={saveOwnership} disabled={savingOwnership} className="w-full">
+                      ذخیره مالکیت و موعد
+                    </Button>
+                  ) : null}
+
+                  <div className="rounded-lg border p-3 bg-muted/30 space-y-2">
+                    <p className="text-xs leading-5 text-muted-foreground">
+                      اگر اطلاعات همچنان معتبر است، اعتبار را تأیید کنید تا موعد بازبینی تمدید شود.
+                    </p>
+                    <div className="flex gap-2">
+                      <Select value={confirmMonths} onValueChange={setConfirmMonths}>
+                        <SelectTrigger className="w-32 h-9" aria-label="دوره تمدید">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">۱ ماه</SelectItem>
+                          <SelectItem value="3">۳ ماه</SelectItem>
+                          <SelectItem value="6">۶ ماه</SelectItem>
+                          <SelectItem value="12">۱۲ ماه</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={confirmValidity}
+                        disabled={confirmingValidity}
+                      >
+                        تأیید اعتبار اطلاعات
+                      </Button>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 

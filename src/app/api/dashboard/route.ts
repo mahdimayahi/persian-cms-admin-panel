@@ -7,6 +7,8 @@
 import { db } from '@/lib/db'
 import { ok, handleApiError, requireAuth } from '@/lib/api-utils'
 import { roleHasPermission } from '@/lib/permissions'
+import { computeTaskCenter } from '@/lib/tasks-center'
+import { countHealthIssues } from '@/lib/health-scan'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -89,6 +91,8 @@ export async function GET() {
       trend.push({ date: key, count: countsByDay.get(key) ?? 0 })
     }
 
+    const [taskCenter, healthIssueCount] = await Promise.all([computeTaskCenter(user), countHealthIssues()])
+
     return ok({
       stats: {
         totalArticles,
@@ -105,6 +109,10 @@ export async function GET() {
       recentActivity,
       pendingReview,
       myDrafts,
+      taskCounts: {
+        ...taskCenter.counts,
+        healthIssues: healthIssueCount,
+      },
       generatedAt: new Date().toISOString(),
     })
   } catch (err) {

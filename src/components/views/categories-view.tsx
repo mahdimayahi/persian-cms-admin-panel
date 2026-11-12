@@ -21,7 +21,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { DataTable, type Column } from '@/components/shared/data-table'
-import { PageHeader, Field, ConfirmDialog, ErrorState } from '@/components/shared/ui-bits'
+import { ImpactDialog } from '@/components/shared/impact-dialog'
+import { PageHeader, Field, ErrorState } from '@/components/shared/ui-bits'
 import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/client/api'
 import { toFa, faDate } from '@/lib/client/format'
 import { useCan } from '@/store/app-store'
@@ -53,7 +54,6 @@ export function CategoriesView() {
 
   // حذف
   const [deleteTarget, setDeleteTarget] = React.useState<Category | null>(null)
-  const [deleting, setDeleting] = React.useState(false)
 
   const load = React.useCallback(async () => {
     setLoading(true)
@@ -118,7 +118,6 @@ export function CategoriesView() {
 
   const confirmDelete = async () => {
     if (!deleteTarget) return
-    setDeleting(true)
     try {
       await apiDelete(`/api/categories/${deleteTarget.id}`)
       toast.success('دسته‌بندی حذف شد.')
@@ -126,8 +125,6 @@ export function CategoriesView() {
       load()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'حذف دسته‌بندی ناموفق بود.')
-    } finally {
-      setDeleting(false)
     }
   }
 
@@ -286,16 +283,12 @@ export function CategoriesView() {
         </DialogContent>
       </Dialog>
 
-      {/* تأیید حذف */}
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onOpenChange={(o) => !o && setDeleteTarget(null)}
-        title="حذف دسته‌بندی"
-        description={`آیا از حذف «${deleteTarget?.name ?? ''}» مطمئن هستید؟ مقالات این دسته بدون دسته‌بندی خواهند شد.`}
-        confirmLabel="حذف دسته‌بندی"
-        destructive
-        loading={deleting}
-        onConfirm={confirmDelete}
+      {/* بررسی اثر تغییر + تأیید حذف */}
+      <ImpactDialog
+        target={deleteTarget ? { type: 'category', id: deleteTarget.id, name: deleteTarget.name } : null}
+        onClose={() => setDeleteTarget(null)}
+        onDelete={confirmDelete}
+        onDeleted={load}
       />
     </div>
   )

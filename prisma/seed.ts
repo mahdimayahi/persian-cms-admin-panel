@@ -29,6 +29,9 @@ async function makeGradientPng(colors: [string, string]): Promise<string> {
 
 async function main() {
   console.log('پاک‌سازی داده‌های قبلی...')
+  await db.healthIgnore.deleteMany()
+  await db.favorite.deleteMany()
+  await db.task.deleteMany()
   await db.activityLog.deleteMany()
   await db.notification.deleteMany()
   await db.session.deleteMany()
@@ -66,9 +69,9 @@ async function main() {
   const mediaDefs: { name: string; colors: [string, string]; alt: string }[] = [
     { name: 'cover-technology.png', colors: ['#7c3aed', '#db2777'], alt: 'تصویر شاخص مقاله فناوری' },
     { name: 'cover-education.png', colors: ['#0f766e', '#22c55e'], alt: 'تصویر شاخص مقاله آموزشی' },
-    { name: 'cover-design.png', colors: ['#f59e0b', '#ef4444'], alt: 'تصویر شاخص مقاله طراحی' },
+    { name: 'cover-design.png', colors: ['#f59e0b', '#ef4444'], alt: '' }, // بدون متن جایگزین — برای نمایش مرکز سلامت
     { name: 'cover-product.png', colors: ['#334155', '#0891b2'], alt: 'تصویر شاخص معرفی محصول' },
-    { name: 'cover-news.png', colors: ['#1d4ed8', '#7c3aed'], alt: 'تصویر شاخص اخبار' },
+    { name: 'cover-news.png', colors: ['#1d4ed8', '#7c3aed'], alt: '' }, // بدون متن جایگزین
   ]
   const mediaIds: string[] = []
   for (const m of mediaDefs) {
@@ -261,6 +264,80 @@ async function main() {
       })
     }
   }
+
+  // مالکیت و بازبینی محتوا (ویژگی «مرکز کارهای من» و «سلامت محتوا»)
+  // مقاله ۰: مالک دارد، بازبینی از موعد گذشته → هشدار HIGH
+  await db.article.update({
+    where: { id: createdArticles[0].id },
+    data: { ownerId: editor.id, reviewAt: new Date(now - 4 * day), lastReviewedAt: new Date(now - 94 * day) },
+  })
+  // مقاله ۱: مالک دارد، بازبینی آینده → سالم
+  await db.article.update({
+    where: { id: createdArticles[1].id },
+    data: { ownerId: admin.id, reviewAt: new Date(now + 20 * day), lastReviewedAt: new Date(now - 10 * day) },
+  })
+  // مقاله ۲: بدون مالک، بدون تاریخ بازبینی → مشکل LOW (بدون مسئول) + سئوی تکراری
+  await db.article.update({
+    where: { id: createdArticles[2].id },
+    data: { seoTitle: 'راهنمای امنیت سامانه مدیریت محتوا', seoDescription: 'امنیت کاربردی در سیستم مدیریت محتوا' },
+  })
+  // مقاله ۶: بدون مالک + سئوی تکراری با مقاله ۲ → مشکل LOW
+  await db.article.update({
+    where: { id: createdArticles[6].id },
+    data: { seoTitle: 'راهنمای امنیت سامانه مدیریت محتوا', seoDescription: 'امنیت کاربردی در سیستم مدیریت محتوا' },
+  })
+
+  console.log('ایجاد کارهای واگذارشده نمونه...')
+  await db.task.createMany({
+    data: [
+      {
+        title: 'اصلاح مقاله «دسترس‌پذیری در پنل‌های مدیریتی»',
+        description: 'بخش اهداف لمسی را با مثال عددی کامل کنید و تصویر شاخص مناسب انتخاب شود.',
+        type: 'REVISION',
+        priority: 'HIGH',
+        status: 'OPEN',
+        dueDate: new Date(now + 2 * day),
+        link: `#/articles/${createdArticles[4].id}/edit`,
+        relatedType: 'ARTICLE',
+        relatedId: createdArticles[4].id,
+        assignedToId: author.id,
+        assignedById: editor.id,
+        assignedByName: 'علی رضایی',
+      },
+      {
+        title: 'بازبینی «چرخه عمر محتوا» پیش از جمعه',
+        description: 'مقاله در صف بررسی است؛ لطفاً تا پایان هفته نتیجه اعلام شود.',
+        type: 'REVIEW',
+        priority: 'MEDIUM',
+        status: 'OPEN',
+        dueDate: new Date(now - 1 * day), // از موعد گذشته
+        link: `#/articles/${createdArticles[3].id}/edit`,
+        relatedType: 'ARTICLE',
+        relatedId: createdArticles[3].id,
+        assignedToId: editor.id,
+        assignedById: admin.id,
+        assignedByName: 'سارا محمدی',
+      },
+      {
+        title: 'پاسخ به درخواست دموی کیوان مرادی',
+        description: 'فرم تماس: هماهنگ‌کردن دموی اختصاصی برای تیم فروش.',
+        type: 'GENERAL',
+        priority: 'MEDIUM',
+        status: 'OPEN',
+        link: '#/forms',
+        assignedToId: admin.id,
+        assignedByName: 'سیستم',
+      },
+    ],
+  })
+
+  console.log('ایجاد علاقه‌مندی نمونه...')
+  await db.favorite.createMany({
+    data: [
+      { userId: admin.id, itemType: 'PAGE', itemId: '/articles', title: 'مقالات', path: '/articles' },
+      { userId: admin.id, itemType: 'PAGE', itemId: '/comments', title: 'دیدگاه‌ها', path: '/comments' },
+    ],
+  })
 
   console.log('ایجاد دیدگاه‌ها...')
   const published = createdArticles.filter((a) => a.status === 'PUBLISHED')

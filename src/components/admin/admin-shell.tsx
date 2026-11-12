@@ -9,9 +9,11 @@ import {
   FileText,
   FolderTree,
   Gauge,
+  HeartPulse,
   Home,
   Image as ImageIcon,
   LayoutList,
+  ListChecks,
   LogOut,
   Menu as MenuIcon,
   MessagesSquare,
@@ -48,13 +50,20 @@ import { apiGet, apiPost, apiPut } from '@/lib/client/api'
 import { timeAgo, toFa } from '@/lib/client/format'
 import { useAppStore } from '@/store/app-store'
 import { ROLE_LABELS, type Role } from '@/lib/permissions'
+import { CommandPalette } from '@/components/shared/command-palette'
 import { cn } from '@/lib/utils'
 
 type NavItem = { label: string; href: string; perm: string | null; icon: React.ElementType }
 type NavGroup = { group: string | null; items: NavItem[] }
 
 const MENU: NavGroup[] = [
-  { group: null, items: [{ label: 'داشبورد', href: '/dashboard', perm: null, icon: Gauge }] },
+  {
+    group: null,
+    items: [
+      { label: 'داشبورد', href: '/dashboard', perm: null, icon: Gauge },
+      { label: 'کارهای من', href: '/tasks', perm: null, icon: ListChecks },
+    ],
+  },
   {
     group: 'محتوا',
     items: [
@@ -89,6 +98,7 @@ const MENU: NavGroup[] = [
   {
     group: 'پایش و گزارش',
     items: [
+      { label: 'سلامت محتوا', href: '/health', perm: 'articles.view', icon: HeartPulse },
       { label: 'گزارش‌ها', href: '/reports', perm: 'reports.view', icon: Activity },
       { label: 'تاریخچه فعالیت‌ها', href: '/activity', perm: 'activity.view', icon: Activity },
       { label: 'تنظیمات', href: '/settings', perm: 'settings.view', icon: Settings },
@@ -98,6 +108,8 @@ const MENU: NavGroup[] = [
 
 const BREADCRUMBS: Record<string, string> = {
   '/dashboard': 'داشبورد',
+  '/tasks': 'کارهای من',
+  '/health': 'سلامت محتوا',
   '/articles': 'مقالات',
   '/categories': 'دسته‌بندی‌ها',
   '/tags': 'برچسب‌ها',
@@ -114,11 +126,29 @@ const BREADCRUMBS: Record<string, string> = {
   '/account': 'حساب من',
 }
 
-type SearchResult = {
-  articles: { id: string; title: string; status: string }[]
-  pages: { id: string; title: string; status: string }[]
-  media: { id: string; originalName: string; mimeType: string }[]
-  users: { id: string; name: string; email: string; role: string }[]
+/** تعداد کارهای منتظر کاربر برای نشان منوی «کارهای من» */
+type TaskBadgeCounts = { awaitingReview: number; openTasks: number; overdueReviews: number }
+
+export function useTaskBadge() {
+  const [counts, setCounts] = React.useState<TaskBadgeCounts | null>(null)
+  const load = React.useCallback(async () => {
+    try {
+      const res = await apiGet<TaskBadgeCounts & Record<string, unknown>>('/api/tasks')
+      setCounts({
+        awaitingReview: (res as unknown as { counts?: TaskBadgeCounts }).counts?.awaitingReview ?? 0,
+        openTasks: (res as unknown as { counts?: TaskBadgeCounts }).counts?.openTasks ?? 0,
+        overdueReviews: (res as unknown as { counts?: TaskBadgeCounts }).counts?.overdueReviews ?? 0,
+      })
+    } catch {
+      // بی‌صدا: نشان حیاتی نیست
+    }
+  }, [])
+  React.useEffect(() => {
+    load()
+    const t = setInterval(load, 120_000)
+    return () => clearInterval(t)
+  }, [load])
+  return counts
 }
 
 type NotificationItem = {
@@ -141,15 +171,18 @@ export function SidebarContent({
   path,
   navigate,
   onNavigate,
+  taskBadge,
 }: {
   path: string
   navigate: (to: string) => void
   onNavigate?: () => void
+  taskBadge?: TaskBadgeCounts | null
 }) {
   const permissions = useAppStore((s) => s.permissions)
   const can = (perm: string | null) => !perm || permissions.includes(perm)
 
   const isActive = (href: string) => path === href || path.startsWith(href + '/')
+  const taskBadgeCount = taskBadge ? taskBadge.openTasks + taskBadge.awaitingReview : 0
 
   return (
     <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground">
@@ -215,7 +248,13 @@ export function SidebarContent({
                             aria-hidden
                           />
                           {item.label}
-                          {active ? <ChevronLeft className="h-3.5 w-3.5 ms-auto text-chart-2/70" aria-hidden /> : null}
+                          {item.href === '/tasks' && taskBadgeCount > 0 ? (
+                            <span className="ms-auto rounded-full bg-gradient-to-br from-destructive to-chart-4 px-1.5 min-w-4.5 text-[10px] leading-4 text-white text-center shadow-sm tabular-nums">
+                              {taskBadgeCount > 9 ? '۹+' : toFa(taskBadgeCount)}
+                            </span>
+                          ) : active ? (
+                            <ChevronLeft className="h-3.5 w-3.5 ms-auto text-chart-2/70" aria-hidden />
+                          ) : null}
                         </button>
                       </li>
                     )
@@ -382,143 +421,24 @@ function NotificationsBell() {
   )
 }
 
-/* ─── جست‌وجوی سراسری ────────────────────────────────────────── */
-function GlobalSearch() {
-  const [q, setQ] = React.useState('')
-  const [results, setResults] = React.useState<SearchResult | null>(null)
-  const [open, setOpen] = React.useState(false)
-  const [loading, setLoading] = React.useState(false)
-  const boxRef = React.useRef<HTMLDivElement>(null)
-
-  React.useEffect(() => {
-    if (q.trim().length < 2) {
-      setResults(null)
-      setOpen(false)
-      return
-    }
-    const t = setTimeout(async () => {
-      setLoading(true)
-      try {
-        const res = await apiGet<SearchResult>(`/api/search?q=${encodeURIComponent(q.trim())}`)
-        setResults(res)
-        setOpen(true)
-      } catch {
-        setResults(null)
-      } finally {
-        setLoading(false)
-      }
-    }, 300)
-    return () => clearTimeout(t)
-  }, [q])
-
-  React.useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [])
-
-  const go = (hash: string) => {
-    setOpen(false)
-    setQ('')
-    window.location.hash = hash.replace(/^#/, '')
-  }
-
-  const hasResults = results && results.articles.length + results.pages.length + results.media.length + results.users.length > 0
-
+/* ─── پالت فرمان (Ctrl+K) ─────────────────────────────────── */
+function CommandTrigger({ onOpen, className }: { onOpen: () => void; className?: string }) {
   return (
-    <div ref={boxRef} className="relative w-full max-w-sm hidden md:block" role="search">
-      <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" aria-hidden />
-      <Input
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        onFocus={() => {
-          if (q.trim().length >= 2 && results) setOpen(true)
-        }}
-        placeholder="جست‌وجوی سراسری…"
-        className="ps-9 rounded-xl bg-muted/60 border-transparent focus-visible:bg-background focus-visible:border-ring h-9.5"
-        aria-label="جست‌وجوی سراسری"
-      />
-      {open ? (
-        <div className="absolute top-full mt-2 w-full rounded-2xl border bg-popover shadow-lg z-50 overflow-hidden">
-          {loading ? (
-            <p className="text-sm text-muted-foreground p-4">در حال جست‌وجو…</p>
-          ) : !hasResults ? (
-            <p className="text-sm text-muted-foreground p-4">نتیجه‌ای یافت نشد.</p>
-          ) : (
-            <ScrollArea className="max-h-80">
-              <div className="p-2 space-y-3">
-                {results!.articles.length > 0 ? (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground px-2 py-1">مقالات</p>
-                    {results!.articles.map((a) => (
-                      <button
-                        key={a.id}
-                        type="button"
-                        onClick={() => go(`#/articles/${a.id}/edit`)}
-                        className="w-full text-start px-2 py-1.5 rounded-lg hover:bg-muted text-sm flex items-center justify-between gap-2"
-                      >
-                        <span className="truncate">{a.title}</span>
-                        <span className="text-[10px] text-muted-foreground shrink-0">مقاله</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-                {results!.pages.length > 0 ? (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground px-2 py-1">صفحات</p>
-                    {results!.pages.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => go('#/pages')}
-                        className="w-full text-start px-2 py-1.5 rounded-lg hover:bg-muted text-sm flex items-center justify-between gap-2"
-                      >
-                        <span className="truncate">{p.title}</span>
-                        <span className="text-[10px] text-muted-foreground shrink-0">صفحه</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-                {results!.media.length > 0 ? (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground px-2 py-1">رسانه</p>
-                    {results!.media.map((m) => (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() => go('#/media')}
-                        className="w-full text-start px-2 py-1.5 rounded-lg hover:bg-muted text-sm flex items-center justify-between gap-2"
-                      >
-                        <span className="truncate">{m.originalName}</span>
-                        <span className="text-[10px] text-muted-foreground shrink-0">فایل</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-                {results!.users.length > 0 ? (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground px-2 py-1">کاربران</p>
-                    {results!.users.map((u) => (
-                      <button
-                        key={u.id}
-                        type="button"
-                        onClick={() => go('#/users')}
-                        className="w-full text-start px-2 py-1.5 rounded-lg hover:bg-muted text-sm flex items-center justify-between gap-2"
-                      >
-                        <span className="truncate">{u.name}</span>
-                        <span className="text-[10px] text-muted-foreground shrink-0">کاربر</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            </ScrollArea>
-          )}
-        </div>
-      ) : null}
-    </div>
+    <button
+      type="button"
+      onClick={onOpen}
+      className={cn(
+        'hidden md:flex w-full max-w-xs items-center gap-2 rounded-xl bg-muted/60 border border-transparent px-3 h-9.5 text-sm text-muted-foreground hover:border-ring hover:bg-background transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        className
+      )}
+      aria-label="بازکردن جست‌وجوی فرمان (Ctrl+K)"
+    >
+      <Search className="h-4 w-4 shrink-0" aria-hidden />
+      <span className="flex-1 text-start truncate">جست‌وجو و فرمان…</span>
+      <kbd className="rounded-md border bg-background px-1.5 py-0.5 text-[10px] font-sans text-muted-foreground shadow-xs" dir="ltr">
+        Ctrl K
+      </kbd>
+    </button>
   )
 }
 
@@ -606,6 +526,20 @@ export function AdminShell({
   children: React.ReactNode
 }) {
   const [mobileOpen, setMobileOpen] = React.useState(false)
+  const [paletteOpen, setPaletteOpen] = React.useState(false)
+  const taskBadge = useTaskBadge()
+
+  // میان‌بر Ctrl+K / Cmd+K برای پالت فرمان
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setPaletteOpen((o) => !o)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const base = '/' + (path.split('/').filter(Boolean)[0] ?? 'dashboard')
   const crumb = BREADCRUMBS[base] ?? 'پنل مدیریت'
@@ -632,7 +566,7 @@ export function AdminShell({
         {/* نوار کناری تیره — دسکتاپ */}
         <aside className="hidden lg:block w-64 shrink-0" aria-label="نوار کناری">
           <div className="sticky top-0 h-screen shadow-[-8px_0_32px_-16px_oklch(0.2_0.03_168/0.35)]">
-            <SidebarContent path={path} navigate={navigate} />
+            <SidebarContent path={path} navigate={navigate} taskBadge={taskBadge} />
           </div>
         </aside>
 
@@ -640,7 +574,7 @@ export function AdminShell({
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetContent side="right" className="p-0 w-72 border-s-0 [&>button:last-of-type]:hidden" dir="rtl">
             <SheetTitle className="sr-only">منوی اصلی</SheetTitle>
-            <SidebarContent path={path} navigate={navigate} onNavigate={() => setMobileOpen(false)} />
+            <SidebarContent path={path} navigate={navigate} onNavigate={() => setMobileOpen(false)} taskBadge={taskBadge} />
             <SheetClose asChild>
               <button
                 type="button"
@@ -685,7 +619,16 @@ export function AdminShell({
               </nav>
 
               <div className="flex-1" />
-              <GlobalSearch />
+              <CommandTrigger onOpen={() => setPaletteOpen(true)} />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden rounded-xl"
+                aria-label="جست‌وجوی فرمان"
+                onClick={() => setPaletteOpen(true)}
+              >
+                <Search className="h-5 w-5" />
+              </Button>
               <div className="h-6 w-px bg-border mx-1 hidden md:block" aria-hidden />
               <NotificationsBell />
               <ThemeToggle />
@@ -728,6 +671,9 @@ export function AdminShell({
           </footer>
         </div>
       </div>
+
+      {/* پالت فرمان سراسری (Ctrl+K) */}
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>
   )
 }

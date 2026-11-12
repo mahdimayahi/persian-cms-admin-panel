@@ -8,6 +8,8 @@ import { useAppStore, type CurrentUser } from '@/store/app-store'
 import { LoginScreen } from '@/components/admin/login-screen'
 import { AdminShell } from '@/components/admin/admin-shell'
 import { DashboardView } from '@/components/views/dashboard-view'
+import { TasksView } from '@/components/views/tasks-view'
+import { HealthView } from '@/components/views/health-view'
 import { ArticlesView } from '@/components/views/articles-view'
 import { ArticleEditorView } from '@/components/views/article-editor-view'
 import { CategoriesView } from '@/components/views/categories-view'
@@ -34,6 +36,10 @@ function renderView(path: string) {
   switch (root) {
     case 'dashboard':
       return <DashboardView />
+    case 'tasks':
+      return <TasksView />
+    case 'health':
+      return <HealthView />
     case 'articles':
       if (seg.length === 1) return <ArticlesView />
       return <ArticleEditorView />

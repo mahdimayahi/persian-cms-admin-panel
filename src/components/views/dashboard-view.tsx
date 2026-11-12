@@ -11,6 +11,7 @@ import {
   FileText,
   Image as ImageIcon,
   Inbox,
+  ListChecks,
   MessagesSquare,
   Plus,
   RefreshCw,
@@ -22,6 +23,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge, EmptyState, ErrorState, LoadingSpinner } from '@/components/shared/ui-bits'
+import { OnboardingChecklist } from '@/components/shared/onboarding-checklist'
 import { apiGet } from '@/lib/client/api'
 import { faDateTime, shortFaDate, timeAgo, toFa } from '@/lib/client/format'
 import { useAppStore, useCan } from '@/store/app-store'
@@ -45,6 +47,14 @@ type DashboardData = {
   recentActivity: { id: string; userName: string; action: string; entityTitle: string | null; details: string | null; createdAt: string }[]
   pendingReview: { id: string; title: string; status: string; updatedAt: string; author: { name: string } }[]
   myDrafts: { id: string; title: string; status: string; updatedAt: string }[]
+  taskCounts: {
+    awaitingReview: number
+    overdueReviews: number
+    openTasks: number
+    overdueTasks: number
+    needsRevision: number
+    healthIssues: number
+  }
   generatedAt: string
 }
 
@@ -137,6 +147,19 @@ export function DashboardView() {
   const can = useCan()
   const hasReview = can('articles.review')
 
+  // جمله خلاصه مرکز کارها برای بنر خوش‌آمد
+  const buildTaskSentence = (tc: DashboardData['taskCounts']): string => {
+    const parts: string[] = []
+    if (tc.awaitingReview > 0) parts.push(`${toFa(tc.awaitingReview)} مقاله منتظر بررسی شما`)
+    if (tc.overdueReviews > 0) parts.push(`${toFa(tc.overdueReviews)} بازبینی محتوا از موعد گذشته`)
+    if (tc.overdueTasks > 0) parts.push(`${toFa(tc.overdueTasks)} کار از موعد گذشته`)
+    else if (tc.openTasks > 0) parts.push(`${toFa(tc.openTasks)} کار واگذارشده باز`)
+    if (tc.needsRevision > 0) parts.push(`${toFa(tc.needsRevision)} مقاله نیازمند اصلاح`)
+    if (tc.healthIssues > 0) parts.push(`${toFa(tc.healthIssues)} مورد در سلامت محتوا`)
+    if (parts.length === 0) return 'هیچ اقدام فوری در انتظار شما نیست — همه‌چیز مرتب است.'
+    return parts.join('، ') + ' دارید.'
+  }
+
   const load = React.useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -174,14 +197,23 @@ export function DashboardView() {
               {user?.name} عزیز، خوش آمدید
             </h1>
             <p className="text-sm text-sidebar-foreground/65 mt-1.5">
-              امروز {toFa(s.inReview)} مطلب در انتظار بازبینی و {toFa(s.pendingComments)} دیدگاه برای بررسی دارید.
+              {buildTaskSentence(data.taskCounts)}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Button
               size="sm"
-              onClick={() => navigate('/articles/new')}
+              onClick={() => navigate('/tasks')}
               className="gap-1.5 rounded-xl shadow-md shadow-primary/30 bg-primary hover:bg-primary/90"
+            >
+              <ListChecks className="h-4 w-4" />
+              مرکز کارهای من
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => navigate('/articles/new')}
+              variant="outline"
+              className="gap-1.5 rounded-xl border-sidebar-foreground/20 bg-sidebar-foreground/5 text-sidebar-foreground hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground"
             >
               <Plus className="h-4 w-4" />
               مقاله جدید
@@ -199,6 +231,9 @@ export function DashboardView() {
           </div>
         </div>
       </div>
+
+      {/* ── راهنمای شروع کار متناسب با نقش ──────────────────────── */}
+      <OnboardingChecklist />
 
       {/* ── شاخص‌های کلیدی ────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">

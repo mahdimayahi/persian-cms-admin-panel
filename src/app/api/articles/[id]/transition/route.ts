@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { ApiError, ok, handleApiError, requirePermission, parseBody, vEnum } from '@/lib/api-utils'
 import { logActivity, notifyUsers, notifyUser } from '@/lib/audit'
+import { createTask } from '@/lib/tasks-center'
 import { roleHasPermission } from '@/lib/permissions'
 import {
   TRANSITION_ACTIONS,
@@ -142,6 +143,35 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         title: 'مقاله شما منتشر شد',
         body: `«${article.title}» در سایت منتشر شد.`,
         link: '#/articles',
+      })
+    }
+
+    // ── اتوماسیون سبک گردش کار ─────────────────────────────
+    if (action === 'REJECT') {
+      // کار خودکار اصلاح برای نویسنده ساخته می‌شود
+      await createTask({
+        title: `اصلاح مقاله «${article.title}»`,
+        description: note ?? 'مقاله توسط بازبین بازگردانده شد؛ یادداشت بازبینی را ببینید.',
+        type: 'REVISION',
+        priority: 'HIGH',
+        link: `#/articles/${article.id}/edit`,
+        relatedType: 'ARTICLE',
+        relatedId: article.id,
+        assignedToId: article.authorId,
+        assignedById: user.id,
+        assignedByName: user.name,
+      })
+    } else if (action === 'SUBMIT_REVIEW') {
+      // با ارسال مجدد برای بررسی، کارهای باز اصلاحِ همین مقاله بسته می‌شوند
+      await db.task.updateMany({
+        where: { relatedType: 'ARTICLE', relatedId: article.id, type: 'REVISION', status: 'OPEN' },
+        data: { status: 'DONE', doneAt: new Date() },
+      })
+    } else if (action === 'PUBLISH') {
+      // کارهای باز مرتبط با این مقاله (مانند «بازبینی پیش از جمعه») بسته می‌شوند
+      await db.task.updateMany({
+        where: { relatedType: 'ARTICLE', relatedId: article.id, type: { in: ['REVIEW', 'REVISION'] }, status: 'OPEN' },
+        data: { status: 'DONE', doneAt: new Date() },
       })
     }
 
