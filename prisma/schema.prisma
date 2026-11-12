@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,20 +7,744 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── کاربران و دسترسی ─────────────────────────────────────────────
+
 model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  role         String    @default("AUTHOR") // ADMIN | EDITOR | AUTHOR | VIEWER
+  status       String    @default("INVITED") // INVITED | ACTIVE | SUSPENDED | DISABLED
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastLoginAt  DateTime?
+  articles     Article[]
+  ownedArticles Article[]  @relation("ArticleOwner")
+  sessions     Session[]
+  media        Media[]
+  notifications Notification[]
+  activityLogs ActivityLog[]
+}
+
+model Session {
   id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent String?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  lastSeenAt DateTime @default(now())
+}
+
+// ─── محتوا ────────────────────────────────────────────────────────
+
+model Category {
+  id           String     @id @default(cuid())
+  name         String
+  slug         String     @unique
+  description  String?
+  color        String     @default("#64748b")
+  // درخت دسته‌بندی (گام ۳ مرحله ۳) — والد اختیاری با جلوگیری از چرخه در لایهٔ سرویس
+  parentId     String?
+  parent       Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children     Category[] @relation("CategoryTree")
+  articles     Article[]
+  // وضعیت «ادغام‌شده» — رکورد قدیمی حذف فیزیکی نمی‌شود؛ مقصد و مسئول ثبت می‌گردد
+  mergedIntoId String?
+  mergedAt     DateTime?
+  mergedByName String?
+  createdAt    DateTime   @default(now())
+
+  @@index([parentId])
+  @@index([mergedIntoId])
+}
+
+model Tag {
+  id           String       @id @default(cuid())
+  name         String       @unique
+  slug         String       @unique
+  articles     ArticleTag[]
+  // وضعیت «ادغام‌شده» — رکورد از انتخاب‌های جدید کنار می‌رود اما سابقه نگه داشته می‌شود
+  mergedIntoId String?
+  mergedAt     DateTime?
+  mergedByName String?
+
+  @@index([mergedIntoId])
+}
+
+// گزارش ادغام‌های انجام‌شده — چه کسی، چه رکوردهایی و با چه انتخاب‌هایی
+model DataMergeLog {
+  id              String   @id @default(cuid())
+  entityType      String // TAG | CATEGORY
+  sourceId        String // رکورد ادغام‌شونده (قدیمی)
+  sourceName      String
+  targetId        String // رکورد مقصد (باقی‌مانده)
+  targetName      String
+  relationCount   Int      @default(0)
+  fieldChoices    String   @default("{}") // JSON — مقدار نهایی انتخابی فیلدها
+  notes           String?
+  performedById   String
+  performedByName String
+  createdAt       DateTime @default(now())
+
+  @@index([entityType, targetId])
+  @@index([entityType, sourceId])
+}
+
+// جفت‌هایی که کاربر «تکراری نیستند» اعلام کرده — بدون تغییر معنادار دوباره پیشنهاد نمی‌شوند
+model DuplicateDismissal {
+  id              String   @id @default(cuid())
+  entityType      String // TAG | CATEGORY
+  idA             String
+  idB             String
+  nameA           String
+  nameB           String
+  reason          String?
+  dismissedById   String
+  dismissedByName String
+  createdAt       DateTime @default(now())
+
+  @@unique([entityType, idA, idB])
+  @@index([entityType])
+}
+
+model Article {
+  id             String         @id @default(cuid())
+  title          String
+  slug           String         @unique
+  excerpt        String         @default("")
+  content        String         @default("")
+  status         String         @default("DRAFT") // DRAFT | IN_REVIEW | NEEDS_REVISION | APPROVED | PUBLISHED | ARCHIVED
+  coverImageId   String?
+  authorId       String
+  author         User           @relation(fields: [authorId], references: [id])
+  categoryId     String?
+  category       Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  tags           ArticleTag[]
+  seoTitle       String?
+  seoDescription String?
+  noindex        Boolean        @default(false)
+  publishedAt    DateTime?
+  views          Int            @default(0)
+  reviewNote     String?
+  ownerId        String?        // مالک مسئول صحت اطلاعات (ممکن است غیر از نویسنده باشد)
+  owner          User?          @relation("ArticleOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  reviewAt       DateTime?      // تاریخ بازبینی بعدی محتوا
+  lastReviewedAt DateTime?      // آخرین بار که «اطلاعات معتبر است» تأیید شد
+  sourceTemplateId      String?  // الگویی که این محتوا از آن ساخته شده
+  sourceTemplateVersion Int?    // نسخه الگو در لحظه ساخت
+  sourceTemplateName    String? // نام الگو در لحظه ساخت (حتی اگر الگو حذف/غیرفعال شود حفظ می‌شود)
+  template       ContentTemplate? @relation(fields: [sourceTemplateId], references: [id], onDelete: SetNull)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  versions       ArticleVersion[]
+  comments       Comment[]
+  bundleItems    BundleItem[]
+  goals          ContentGoal[]
+  experiments    Experiment[]
+
+  @@index([status])
+  @@index([authorId])
+  @@index([publishedAt])
+  @@index([ownerId])
+  @@index([reviewAt])
+}
+
+model ArticleVersion {
+  id        String   @id @default(cuid())
+  articleId String
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  title     String
+  content   String
+  excerpt   String
+  editorId  String
+  editorName String
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([articleId])
+}
+
+model ArticleTag {
+  articleId String
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tagId     String
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+}
+
+model Comment {
+  id          String   @id @default(cuid())
+  articleId   String
+  article     Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  authorName  String
+  authorEmail String
+  content     String
+  status      String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  createdAt   DateTime @default(now())
+
+  @@index([status])
+}
+
+// ─── رسانه ────────────────────────────────────────────────────────
+
+model Media {
+  id           String   @id @default(cuid())
+  filename     String   // نام امن روی سرور
+  originalName String   // نام اصلی فایل
+  mimeType     String
+  size         Int      // بایت
+  width        Int?
+  height       Int?
+  altText      String   @default("")
+  data         String   // base64
+  uploadedById String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
+}
+
+// ─── ساختار سایت ──────────────────────────────────────────────────
+
+model Page {
+  id        String   @id @default(cuid())
+  title     String
+  slug      String   @unique
+  content   String   @default("")
+  status    String   @default("DRAFT") // DRAFT | PUBLISHED
+  showInNav Boolean  @default(false)
+  order     Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-model Post {
+model MenuItem {
+  id    String @id @default(cuid())
+  label String
+  url   String
+  order Int    @default(0)
+}
+
+// ─── فرم‌ها ───────────────────────────────────────────────────────
+
+model FormSubmission {
   id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
+  formName  String   @default("تماس با ما")
+  name      String
+  email     String
+  subject   String
+  message   String
+  status    String   @default("NEW") // NEW | READ | ARCHIVED
   createdAt DateTime @default(now())
+
+  @@index([status])
+}
+
+// ─── پایش و پیکربندی ──────────────────────────────────────────────
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName    String   @default("سیستم")
+  action      String   // LOGIN, LOGOUT, CREATE, UPDATE, DELETE, PUBLISH, ...
+  entityType  String   // ARTICLE, USER, MEDIA, ...
+  entityId    String?
+  entityTitle String?
+  details     String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entityType])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // REVIEW_REQUEST | APPROVED | REJECTED | PUBLISHED | COMMENT | FORM | ACCESS
+  title     String
+  body      String   @default("")
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([read])
+}
+
+model Setting {
+  key       String   @id
+  value     String
   updatedAt DateTime @updatedAt
+}
+
+// ─── مرکز کارها و شخصی‌سازی ─────────────────────────────────────
+
+// کار واگذارشده به کاربر (دستی یا خودکار از گردش کار)
+model Task {
+  id           String    @id @default(cuid())
+  title        String
+  description  String?
+  type         String    @default("GENERAL") // GENERAL | REVIEW | REVISION | HEALTH
+  priority     String    @default("MEDIUM") // LOW | MEDIUM | HIGH
+  status       String    @default("OPEN") // OPEN | DONE | CANCELLED
+  dueDate      DateTime?
+  link         String?   // مسیر داخلی پنل مانند #/articles/x/edit
+  relatedType  String?   // نوع موجودیت مرتبط: ARTICLE | ...
+  relatedId    String?   // شناسه موجودیت مرتبط (برای بستن خودکار کارها)
+  assignedToId String
+  assignedById String?
+  assignedByName String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  doneAt       DateTime?
+
+  @@index([assignedToId, status])
+  @@index([relatedType, relatedId])
+}
+
+// علاقه‌مندی/سنجاق‌شدن صفحه‌ها و رکوردها برای دسترسی سریع (Ctrl+K)
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  itemType  String   // PAGE | ARTICLE | MEDIA | ...
+  itemId    String   // برای صفحه‌های پنل: مسیر مثل /tasks
+  title     String
+  path      String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, itemType, itemId])
+  @@index([userId])
+}
+
+// ─── همکاری، کمپین و بهبود کیفیت ────────────────────────────────
+
+// گفتگوهای درون‌محتوایی (کنار رکورد، نه در پیام‌رسان)
+model ContentComment {
+  id             String    @id @default(cuid())
+  entityType     String    // ARTICLE | PAGE
+  entityId       String
+  body           String
+  authorId       String
+  authorName     String
+  mentions       String    @default("[]") // JSON آرایه‌ای از شناسه کاربران منشن‌شده
+  status         String    @default("OPEN") // OPEN | RESOLVED
+  assigneeId     String?
+  assigneeName   String?
+  parentId       String?   // رشته گفتگو: پاسخ به نظر والد (عمق ۱)
+  parent         ContentComment?  @relation("CommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies        ContentComment[] @relation("CommentThread")
+  versionRef     String?   // اتصال اختیاری گفتگو به نسخه محتوا
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  resolvedAt     DateTime?
+  resolvedByName String?
+
+  @@index([entityType, entityId, status])
+  @@index([parentId])
+}
+
+// بسته انتشار (کمپین) — مجموعه مقالات که با هم آماده و منتشر می‌شوند
+model PublishBundle {
+  id             String       @id @default(cuid())
+  title          String
+  note           String       @default("") // توضیح بسته
+  status         String       @default("DRAFT") // DRAFT | IN_REVIEW | APPROVED | SCHEDULED | PUBLISHING | PUBLISHED | PARTIAL | FAILED | CANCELLED
+  ownerId        String?      // مسئول بسته (مسئول پاسخ‌گویی)
+  ownerName      String?
+  scheduledAt    DateTime?    // زمان انتشار زمان‌بندی‌شده (UTC)
+  timezone       String       @default("Asia/Tehran") // منطقه زمانی نمایش و تفسیر زمان انتشار
+  publishedAt    DateTime?
+  approvedAt     DateTime?    // آخرین تأیید معتبر
+  approvedById   String?
+  approvedByName String?
+  readinessState String       @default("UNKNOWN") // READY | READY_WARNINGS | BLOCKED | UNKNOWN — نتیجه آخرین بررسی آمادگی
+  readinessJson  String       @default("[]") // آخرین گزارش بررسی آمادگی (JSON)
+  createdById    String
+  createdByName  String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  items          BundleItem[]
+  history        BundleHistory[]
+
+  @@index([status])
+}
+
+// سابقه تغییرات بسته (اقلام، نسخه‌ها، زمان‌بندی، تأیید، اجرا)
+model BundleHistory {
+  id        String         @id @default(cuid())
+  bundleId  String
+  bundle    PublishBundle  @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  kind      String         // CREATED | ITEM_ADDED | ITEM_REMOVED | ITEM_VERSION_SET | SCHEDULE_SET | SCHEDULE_CANCELLED | SENT_TO_REVIEW | APPROVED | APPROVAL_INVALIDATED | READINESS_RUN | RUN | RETRY | CANCELLED | UPDATED
+  message   String         @default("")
+  userId    String?
+  userName  String?
+  createdAt DateTime       @default(now())
+
+  @@index([bundleId, createdAt])
+}
+
+model BundleItem {
+  id                String        @id @default(cuid())
+  bundleId          String
+  bundle            PublishBundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  articleId         String
+  article           Article       @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  versionId         String?       // نسخه مشخص محتوا که عضو بسته است (الزامی برای آمادگی)
+  versionNumber     Int?          // شماره نسخه برای نمایش سریع
+  approvedVersionId String?       // نسخه‌ای که هنگام تأیید بسته ثبت شد — فقط همان نسخه منتشر می‌شود
+  label             String        @default("") // نقش قلم در بسته (مثل «صفحه معرفی خدمت»)
+  snapshotStatus    String        @default("") // وضعیت مقاله در لحظه افزودن به بسته
+  result            String?       // SUCCESS | FAILED | SKIPPED
+  message           String?
+  addedAt           DateTime      @default(now())
+
+  @@unique([bundleId, articleId])
+  @@index([bundleId])
+}
+
+// مرکز عملیات — عملیات طولانی با وضعیت زنده، نتیجهٔ تک‌تک موارد، لغو و تلاش مجدد
+model OperationLog {
+  id            String    @id @default(cuid())
+  type          String // BULK_PUBLISH_ARTICLES | BULK_UNPUBLISH_ARTICLES | BUNDLE_PUBLISH | MEDIA_UPLOAD | CSV_EXPORT | OTHER
+  title         String
+  status        String    @default("QUEUED") // QUEUED | RUNNING | SUCCESS | PARTIAL | FAILED | CANCEL_REQUESTED | CANCELLED
+  totalItems    Int       @default(0)
+  doneItems     Int       @default(0)
+  failedItems   Int       @default(0)
+  initiatorId   String?
+  initiatorName String    @default("سیستم")
+  resultSummary String    @default("")
+  errorsJson    String    @default("[]") // JSON [{ item, reason }] (برای عملیات قدیمی بدون آیتم)
+  relatedId     String?
+  retryOfId     String?   // شناسه عملیات اصلی در صورت «تلاش مجدد»
+  cancelRequested Boolean @default(false) // درخواست لغو؛ پردازشگر در گام بعدی متوقف می‌شود
+  startedAt     DateTime?
+  heartbeatAt   DateTime? // آخرین نشانهٔ حیات پردازشگر (تشخیص قطع‌شدن)
+  createdAt     DateTime  @default(now())
+  finishedAt    DateTime?
+  items         OperationItem[]
+
+  @@index([createdAt])
+  @@index([status])
+}
+
+// نتیجهٔ تک‌تک موارد یک عملیات دسته‌ای
+model OperationItem {
+  id          String   @id @default(cuid())
+  operationId String
+  operation   OperationLog @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  refType     String   // ARTICLE | ...
+  refId       String
+  label       String
+  status      String   @default("PENDING") // PENDING | SUCCEEDED | FAILED | SKIPPED | CANCELLED
+  message     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([operationId, status])
+}
+
+// ریدایرکت ثبت‌شده پس از تغییر آدرس محتوای منتشرشده
+model Redirect {
+  id            String   @id @default(cuid())
+  fromPath      String   @unique // مسیر قدیمی، مانند /articles/old-slug
+  toPath        String   // مسیر جدید
+  kind          String   @default("SLUG_CHANGE") // SLUG_CHANGE | MANUAL
+  entityType    String?  // ARTICLE | PAGE
+  entityId      String?
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime @default(now())
+
+  @@index([entityType, entityId])
+}
+
+// الگوهای آماده محتوا (ایجاد نسخه مستقل از الگو)
+model ContentTemplate {
+  id              String   @id @default(cuid())
+  name            String
+  description     String   @default("")
+  type            String   @default("ARTICLE") // ARTICLE | LANDING
+  titleTemplate   String   @default("")
+  excerptTemplate String   @default("")
+  contentTemplate String   @default("")
+  structure       String   @default("[]") // JSON ساختار فیلدها/بلوک‌های الگو
+  guideText       String   @default("") // متن راهنما و نمونه برای استفاده از الگو
+  checklist       String   @default("[]") // JSON چک‌لیست تکمیل (آیتم‌های متنی)
+  tagNames        String   @default("[]") // JSON آرایه نام برچسب‌ها
+  categoryId      String?
+  isActive        Boolean  @default(true) // برای ساخت محتوای جدید قابل انتخاب
+  version         Int      @default(1) // نسخه فعلی — هر تغییر ثبت‌شده، نسخه جدید می‌سازد
+  isSystem        Boolean  @default(false)
+  createdById     String?
+  createdByName   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  versions        TemplateVersion[]
+  articles        Article[]
+}
+
+// نسخه‌های ثبت‌شده الگو (سابقه تغییرات)
+model TemplateVersion {
+  id              String          @id @default(cuid())
+  templateId      String
+  template        ContentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  version         Int
+  name            String
+  description     String          @default("")
+  type            String          @default("ARTICLE")
+  structure       String          @default("[]")
+  titleTemplate   String          @default("")
+  excerptTemplate String          @default("")
+  contentTemplate String          @default("")
+  guideText       String          @default("")
+  checklist       String          @default("[]")
+  tagNames        String          @default("[]")
+  categoryId      String?
+  changeNote      String          @default("")
+  createdByName   String          @default("")
+  createdAt       DateTime        @default(now())
+
+  @@unique([templateId, version])
+  @@index([templateId])
+}
+
+// واژه‌نامه و کنترل هویت برند (هشدار غیرمسدودکننده در ویرایشگر)
+model GlossaryTerm {
+  id            String              @id @default(cuid())
+  term          String              @unique // شکل مشاهده‌شده/نامطلوب که باید تشخیص داده شود
+  preferred     String              @default("") // عبارت ترجیحی (پیشنهاد اصلاح)
+  forms         String              @default("[]") // JSON: سایر شکل‌های نامطلوب که باید تشخیص داده شوند
+  type          String              @default("STYLE") // BRAND_TERM | BRAND_NAME | STYLE | CLARITY (نوع بررسی)
+  severity      String              @default("SUGGESTION") // SUGGESTION | WARNING | ENFORCING (شدت هشدار)
+  scope         String              @default("ALL") // ALL | TITLE | BODY | SEO (دامنه کاربرد)
+  language      String              @default("FA") // FA | EN (زبان واژه)
+  explanation   String              @default("") // توضیح علت هشدار
+  example       String              @default("") // مثال کاربرد درست
+  note          String              @default("")
+  isActive      Boolean             @default(true) // قاعده غیرفعال در بررسی اعمال نمی‌شود
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  exceptions    GlossaryException[]
+}
+
+// استثناهای ثبت‌شده برای نادیده‌گرفتن یک قاعده در یک محتوای مشخص (با دلیل و مسئول)
+model GlossaryException {
+  id            String       @id @default(cuid())
+  termId        String
+  term          GlossaryTerm @relation(fields: [termId], references: [id], onDelete: Cascade)
+  entityType    String       @default("ARTICLE")
+  entityId      String
+  field         String       // TITLE | EXCERPT | CONTENT | SEO_TITLE | SEO_DESCRIPTION
+  reason        String
+  ignoredById   String
+  ignoredByName String
+  createdAt     DateTime     @default(now())
+
+  @@unique([termId, entityId, field])
+  @@index([entityType, entityId])
+}
+
+// پشتیبانی تشخیصی — گزارش مشکل با شناسه قابل‌ردگیری
+// status: NEW | IN_PROGRESS | NEED_INFO | RESOLVED | CLOSED
+// نگهداری گزارش‌ها و پیوست‌ها ۱۸۰ روز (سیاست نگهداری در کد مسیر ثبت شده است)
+model SupportTicket {
+  id             String    @id @default(cuid())
+  code           String    @unique
+  userId         String? // کاربر گزارش‌دهنده (برای «گزارش‌های من» و تفکیک دسترسی)
+  userName       String
+  userEmail      String
+  subject        String    @default("")
+  expectation    String    @default("") // انتظار کاربر
+  actual         String    @default("") // اتفاق واقعی
+  page           String    @default("") // مسیر پاک‌سازی‌شده (بدون پارامتر)
+  section        String    @default("") // بخش مرتبط سامانه
+  steps          String    @default("")
+  errorInfo      String    @default("") // کد/پیام خطا (پالایش‌شده)
+  operationId    String? // اتصال به مرکز عملیات
+  diagnostics    String    @default("{}") // JSON اطلاعاتتشخیصی مجاز
+  screenshot     String? // تصویر اختیاری (data URL؛ پوشاندن حساس در خروجی اعمال شده)
+  screenshotMime String?
+  userAgent      String    @default("")
+  status         String    @default("NEW")
+  note           String? // یادداشت پشتیبان
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  resolvedAt     DateTime?
+  resolvedByName String?
+
+  @@index([status])
+  @@index([userId])
+}
+
+// پیشرفت راهنمای نقش‌محور هر کاربر — تکمیل فقط با رویداد موفق واقعی
+model GuideProgress {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  stepsDone   String    @default("[]") // JSON آرایه شناسه گام‌های تکمیل‌شده
+  dismissedAt DateTime?
+  version     String    @default("1") // نسخهٔ محتوای راهنما
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// موارد نادیده‌گرفته‌شده در مرکز سلامت محتوا (با دلیل)
+model HealthIgnore {
+  id          String   @id @default(cuid())
+  issueKey    String   @unique // کلید پایدار مشکل، مانند article-cover:cuid
+  reason      String
+  ignoredById String
+  ignoredByName String
+  createdAt   DateTime @default(now())
+}
+
+// ─── مرحله ۴: سنجش نتیجه محتوا و آزمایش A/B ───────────────────────
+
+// هدف محتوا — اتصال محتوا به هدف کسب‌وکار با قرارداد شاخص شفاف
+model ContentGoal {
+  id                String    @id @default(cuid())
+  title             String
+  contentId         String // محتوای هدف (مقالهٔ منتشرشده، مانند صفحهٔ معرفی خدمت)
+  article           Article   @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  primaryGoal       String // هدف اصلی کسب‌وکار (متن)
+  successEvent      String    @default("FORM_SUCCESS") // رویداد موفقیت: FORM_SUCCESS | SIGNUP | PURCHASE
+  metricLabel       String // برچسب شاخص اصلی (مثل «نرخ ثبت درخواست مشاوره»)
+  metricNumerator   String // تعریف صورت نرخ (ثابت و شفاف)
+  metricDenominator String // تعریف مخرج نرخ (ثابت و شفاف)
+  attributionRule   String    @default("AFTER_FIRST_VIEW") // AFTER_FIRST_VIEW | SAME_SESSION
+  attributionHours  Int       @default(24) // پنجرهٔ انتساب
+  reportFrom        DateTime? // آغاز بازهٔ گزارش (منطقهٔ زمانی گزارش: Asia/Tehran)
+  ownerUserId       String? // مسئول پیگیری
+  ownerName         String?
+  status            String    @default("ACTIVE") // ACTIVE | PAUSED | ARCHIVED
+  createdById       String
+  createdByName     String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([contentId])
+  @@index([status])
+}
+
+// رویداد تحلیلی محدود و مشخص — بدون دادهٔ شخصی و بدون متن فرم
+// eventId یکتا است؛ ارسال مجدد همان شناسه شمارش تکراری ایجاد نمی‌کند
+model AnalyticsEvent {
+  id               String   @id @default(cuid())
+  eventId          String   @unique // شناسه یکتای رویداد (ضد شمارش تکراری)
+  eventType        String // PAGE_VIEW | CTA_CLICK | FORM_START | FORM_SUCCESS | FORM_INVALID | SIGNUP | PURCHASE
+  occurredAt       DateTime // زمان وقوع واقعی
+  contentId        String? // شناسه پایدار محتوا
+  contentVersionId String? // نسخهٔ محتوا یا شناسه انتشار در صورت امکان
+  visitorId        String // شناسه مستعار نشست/بازدیدکننده در حدود مجاز
+  sessionId        String? // شناسه مستعار نشست
+  referrer         String   @default("") // منبع ورود پاک‌سازی‌شده
+  experimentId     String? // شناسه آزمایش اگر رویداد مربوط به آزمایش است
+  variantGroup     String? // CONTROL | VARIANT
+  isInternal       Boolean  @default(false) // ترافیک داخلی (پیش‌نمایش/مدیر) — از گزارش نتیجه کنار می‌رود
+  isBot            Boolean  @default(false) // ربات شناخته‌شده
+  isConsented      Boolean  @default(true) // رضایت ردیابی — بدون رضایت فقط شمارش پوشش
+  isSimulated      Boolean  @default(false) // دادهٔ شبیه‌سازی‌شدهٔ نمایشی
+  createdAt        DateTime @default(now())
+
+  @@index([contentId, eventType, occurredAt])
+  @@index([experimentId, variantGroup, eventType])
+  @@index([visitorId])
+  @@index([occurredAt])
+}
+
+// دفتر پذیرش رویداد — شفافیت کیفیت داده؛ تکرار و نامعتبر پذیرفته نمی‌شوند اما ثبت می‌گردند
+model EventIngestLog {
+  id        String   @id @default(cuid())
+  eventId   String
+  status    String // ACCEPTED | DUPLICATE | INVALID
+  reason    String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([status, createdAt])
+}
+
+// آزمایش A/B — مقایسهٔ کنترل‌شده دو نسخه با تصمیم انسانی
+model Experiment {
+  id                    String    @id @default(cuid())
+  title                 String
+  hypothesis            String // فرضیهٔ مشخص (اثر تغییر روی شاخص اصلی)
+  ownerUserId           String?
+  ownerName             String?
+  targetContentId       String // محتوای هدف (مقالهٔ نسخه‌بندی‌شده)
+  article               Article  @relation(fields: [targetContentId], references: [id], onDelete: Cascade)
+  changeType            String    @default("TITLE") // TITLE | CTA_TEXT | HERO_IMAGE | BLOCK — نسخهٔ اول فقط یک تغییر
+  slotLabel             String    @default("") // محل تغییر، مثل «عنوان صفحهٔ معرفی خدمت»
+  controlVersionId      String? // اتصال نسخهٔ کنترل به شناسهٔ نسخه (مرحله ۲)
+  variantVersionId      String? // اتصال نسخهٔ جایگزین به شناسهٔ نسخه
+  variantPayload        String    @default("{}") // JSON محتوای نسخهٔ جایگزین (مثل عنوان پیشنهادی)
+  assignmentUnit        String    @default("VISITOR") // واحد تخصیص
+  trafficSplitPercent   Int       @default(50) // سهم نسخهٔ جایگزین
+  eligiblePopulation    String    @default("CONSENTED") // ALL | CONSENTED
+  primaryMetricEvent    String    @default("FORM_SUCCESS") // شاخص اصلی
+  attributionHours      Int       @default(24) // پنجرهٔ زمانی انتساب تبدیل به مواجهه
+  guardrailsJson        String    @default("[]") // JSON شاخص‌های محافظ [{key,label,maxLiftPp}]
+  plannedSamplePerGroup Int       @default(2000) // برنامهٔ حجم نمونه به‌ازای هر گروه
+  plannedDurationDays   Int       @default(14) // مدت برنامه‌ریزی‌شدهٔ اجرا
+  minDetectableEffectPp Float? // حداقل اثر ارزشمند برای کسب‌وکار (واحد درصد)
+  stoppingRule          String    @default("") // قواعد توقف و تصمیم‌گیری پیش از شروع
+  lastPreflightJson     String    @default("[]") // آخرین نتیجهٔ بررسی فنی
+  status                String    @default("DRAFT") // DRAFT | REVIEW | RUNNING | PAUSED | ENDED | INVALID
+  isAaTest              Boolean   @default(false) // آزمایش A/A برای اعتبارسنجی اندازه‌گیری
+  startedAt             DateTime?
+  pausedAt              DateTime?
+  plannedEndAt          DateTime? // پایان طبق برنامه (منطقهٔ زمانی تهران)
+  endedAt               DateTime?
+  endReason             String    @default("")
+  emergencyStoppedAt    DateTime? // توقف اضطراری — نمایش امن نسخهٔ کنترل
+  decision              String? // WIN_VARIANT | WIN_CONTROL | INCONCLUSIVE | INVALID_DATA — فقط تصمیم انسانی
+  decisionReason        String? // دلیل تصمیم همراه با محدودیت‌های تحلیل
+  decisionLimitations   String    @default("") // محدودیت‌های ثبت‌شده در لحظهٔ تصمیم
+  decidedByName         String?
+  decidedAt             DateTime?
+  invalidReason         String?
+  createdById           String
+  createdByName         String
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  assignments           ExperimentAssignment[]
+  history               ExperimentHistory[]
+
+  @@index([status])
+  @@index([targetContentId, changeType, status])
+}
+
+// تخصیص پایدار و مواجههٔ واقعی — هر بازدیدکننده در هر آزمایش یک رکورد
+// firstExposedAt با تخصیص متفاوت است؛ تبدیل فقط یک‌بار برای هر بازدیدکننده ثبت می‌شود
+model ExperimentAssignment {
+  id             String     @id @default(cuid())
+  experimentId   String
+  experiment     Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  visitorId      String
+  assignedGroup  String // CONTROL | VARIANT
+  assignedAt     DateTime   @default(now())
+  firstExposedAt DateTime? // نخستین مواجههٔ واقعی طبق تعریف فنی
+  exposureCount  Int        @default(0)
+  convertedAt    DateTime? // نخستین تبدیل معتبر در پنجرهٔ انتساب (ضد دوباره‌شماری)
+
+  @@unique([experimentId, visitorId])
+  @@index([experimentId, assignedGroup])
+}
+
+// سابقهٔ آزمایش — شروع، توقف، پایان و تصمیم با مسئول و زمان (تهران)
+model ExperimentHistory {
+  id           String     @id @default(cuid())
+  experimentId String
+  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  kind         String // CREATED | UPDATED | REVIEW | START | PAUSE | RESUME | EMERGENCY_STOP | END | DECISION | INVALID
+  message      String     @default("")
+  userName     String     @default("")
+  createdAt    DateTime   @default(now())
+
+  @@index([experimentId, createdAt])
 }

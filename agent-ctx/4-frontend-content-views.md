@@ -1,0 +1,38 @@
+# Task 4 — Content View Components (Frontend) for Persian RTL CMS
+
+## Status: COMPLETED
+
+Agent: 4 (frontend content views) | Scope: ONLY the 8 files listed below. No shared/lib/store/hook/API/page.tsx files touched. No dev server / db:push / lint run. `bunx tsc --noEmit` = **zero errors in all 8 view files** (remaining project errors are pre-existing in `examples/`, `skills/`, `src/components/admin/admin-shell.tsx` — owned by others).
+
+## Created files (8)
+
+| # | Path | Export | Summary |
+|---|------|--------|---------|
+| 1 | `src/components/views/articles-view.tsx` | `ArticlesView` | Reference list page: filter bar (debounced 300ms SearchInput, status/category/sort Selects), server-paginated DataTable, per-row DropdownMenu with edit + workflow transitions (SUBMIT_REVIEW/APPROVE/PUBLISH/UNPUBLISH/ARCHIVE, ownership+permission logic mirrored from backend), delete via ConfirmDialog, bulk bar (انتشار/بایگانی/حذف with per-item sequential calls, success/fail Persian summary toast, scope note text), CSV export loop (pageSize=100 up to total, cap 1000 → `downloadCsv` with Persian headers), guarded sub-route rendering (returns null for `/articles/new` & `/articles/{id}/edit` so the editor can own those paths). |
+| 2 | `src/components/views/article-editor-view.tsx` | `ArticleEditorView` | Route-derived editor (`/articles/new`, `/articles/{id}/edit` via `useHashRoute` segments). Sticky action bar (back, borderless title input, status badge, save + last-saved timeAgo). Tabs محتوا/سئو/نسخه‌ها (versions only when editing). Content: markdown toolbar (Heading2/Bold/Italic/List/ListOrdered/Quote/Link2/Code/Table via `applyMd` on textarea ref selectionStart/End), نوشتن/پیش‌نمایش tabs with ReactMarkdown in `.md-preview`, word count + autosave indicator. Sidebar cards: workflow (allowed transitions incl. REJECT w/ required inline note ≥5 chars, ConfirmDialog for PUBLISH/UNPUBLISH/ARCHIVE, amber reviewNote Alert on NEEDS_REVISION), category select + tag picker (removable badges + Popover/ScrollArea filter), cover image via MediaPickerDialog, excerpt, ltr slug. SEO: seoTitle 60 / seoDescription 160 counters, noindex Switch. Versions: list, view Dialog (ReactMarkdown), restore ConfirmDialog → refetch article+versions. Save: title≥3 validation+focus, POST create → toast → navigate to edit URL, PUT with `baseUpdatedAt`, **409 conflict → two-action AlertDialog** («بارگیری نسخه سرور» refetch / «ذخیره با نسخه من» retry without baseUpdatedAt). Autosave: 20s interval (dirty only) to `article-autosave-{id|'new'}`, restore-diff Alert on mount with بازیابی/نادیده گرفتن, cleared on save and on PUBLISH transition. Readonly mode mirrors server ownership rules (edit.any OR own + not PUBLISHED/ARCHIVED). |
+| 3 | `src/components/views/categories-view.tsx` | `CategoriesView` | No-pagination DataTable (GET returns array): color-dot name, description line-clamp-1, `_count.articles` toFa, faDate. Create/edit Dialog (name required, description, `input type=color`), server Persian messages toasted directly (409 dup-name), delete ConfirmDialog with «مقالات این دسته بدون دسته‌بندی خواهند شد.» Actions column + button gated by `categories.manage`. |
+| 4 | `src/components/views/tags-view.tsx` | `TagsView` | Same pattern, simpler: name, slug (ltr-inline), count. Add dialog (name only, Enter submits), delete ConfirmDialog. Gated by `tags.manage`. |
+| 5 | `src/components/views/comments-view.tsx` | `CommentsView` | Status Tabs (همه/PENDING/APPROVED/REJECTED) resetting page, debounced search, server-paginated DataTable: author+email (ltr-inline), content line-clamp-2, article title link-button → editor, timeAgo, StatusBadge. Row moderation (تأیید/رد via PUT, delete ConfirmDialog) gated by `comments.moderate`. Bulk bar: تأیید گروهی / رد گروهی / حذف گروهی with per-item sequential PUT/DELETE + success/fail toast + scope note. |
+| 6 | `src/components/views/media-view.tsx` | `MediaView` | Grid gallery (not DataTable): hidden multi-file input + drag-drop zone (`onDragOver`/`onDrop`), upload button spinner, client-side 5MB pre-check, mimeType filter (همه/تصاویر/اسناد PDF via `mimeType` prefix param), skeleton grid, card → details Dialog (preview, mimeType, dimensions toFa w×h, size, uploader, faDateTime; altText Input+ذخیره via PUT when uploader===me or `media.delete.any`; «نمایش فایل» target=_blank; delete gated, **409 `data.usedBy` → ConfirmDialog with حذف اجباری → `DELETE ?force=true`**), Pagination below grid, empty «فایلی یافت نشد». Upload uses `apiPost('/api/media', FormData)` (same-origin, no absolute URLs). |
+| 7 | `src/components/views/pages-view.tsx` | `PagesView` | No-pagination DataTable: title, `/slug` ltr-inline, inline StatusBadge (PUBLISHED منتشرشده emerald / DRAFT پیش‌نویس slate), در منو بله/خیر, order toFa, timeAgo. Dialog editor: title, ltr slug with **local slugify auto-derivation from title** (until manually edited), content Textarea rows=10 + پیش‌نمایش ReactMarkdown `.md-preview`, showInNav Switch, order number, status Select. POST/PUT + delete ConfirmDialog. Gated by `pages.manage`. |
+| 8 | `src/components/views/menus-view.tsx` | `MenusView` | Ordered Card list sorted by `order`: order badge toFa, label, url ltr-inline. Reorder بالا/پایین = **swap order values via two sequential PUTs then reload**; edit dialog (label+url); delete ConfirmDialog. POST without order (server assigns max+1). Empty «آیتمی در منو وجود ندارد». Gated by `menus.manage`. |
+
+## Conventions followed
+
+- All Persian text; `sonner` toasts with Persian messages; helpers `toFa/faDate/faDateTime/timeAgo/faBytes/downloadCsv`; logical CSS (`ps-/pe-/ms-/me-/start-/end-`, `ltr-inline` for latin/email/url); `.md-preview` + ReactMarkdown for previews; dashboard-view loading/error/empty patterns (`LoadingSpinner`/`ErrorState`/`EmptyState`/DataTable skeleton); permission gating via `useCan()`; navigation via `navigate()` from `use-hash-route`; all API calls relative paths; race-guard (`seqRef`) on paginated lists.
+
+## API deviations / notes found (for the lead)
+
+1. **Tag model has no `createdAt`** (schema + GET /api/tags return none), so the tags table omits the "created" column the brief mentioned — showing an all-«—» column would be misleading. Everything else per spec.
+2. **`getPaginationParams` caps pageSize at 100** — the CSV export loop naturally works with pageSize=100; cap-1000 guard implemented client-side.
+3. **PUT article ignores empty `slug`** (only updates when non-empty) — clearing the slug field intentionally does not reset it server-side; UI hint doesn't promise clearing.
+4. **Comment list include** provides `article{id,title,slug}`; a comment whose article was deleted cascades away, so `article` is treated as nullable in UI.
+5. **Media DELETE 409** carries `data:{usedBy:N}`; force-delete via `?force=true` — implemented exactly; message text uses Persian numerals.
+6. **Transition endpoint** also accepts REJECT/BACK_TO_DRAFT beyond the 5 list actions — editor exposes all allowed ones (incl. BACK_TO_DRAFT per backend rule author-or-reviewer from NEEDS_REVISION/APPROVED); list view keeps the 5 specified.
+7. **Create article response** lacks `versions`/`_count` keys — typed optional in `ArticleDetail`; the post-create navigate→refetch fills them.
+8. Pre-existing (not mine, not fixed): `admin-shell.tsx` has 2 tsc errors (line 221 number/string, line 510 `dir` prop on DropdownMenuContent) — flagging since lead wires the shell; my views don't depend on those lines.
+
+## Verification
+
+- `bunx tsc --noEmit`: 0 errors attributable to `src/components/views/{articles,article-editor,categories,tags,comments,media,pages,menus}-view.tsx`.
+- Did NOT run dev server / db:push / lint / build per task rules. Root page registry intentionally untouched (lead wiring).
