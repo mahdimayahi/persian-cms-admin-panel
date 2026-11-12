@@ -1,0 +1,215 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── کاربران و دسترسی ─────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  role         String    @default("AUTHOR") // ADMIN | EDITOR | AUTHOR | VIEWER
+  status       String    @default("INVITED") // INVITED | ACTIVE | SUSPENDED | DISABLED
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastLoginAt  DateTime?
+  articles     Article[]
+  sessions     Session[]
+  media        Media[]
+  notifications Notification[]
+  activityLogs ActivityLog[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent String?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  lastSeenAt DateTime @default(now())
+}
+
+// ─── محتوا ────────────────────────────────────────────────────────
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  color       String    @default("#64748b")
+  articles    Article[]
+  createdAt   DateTime  @default(now())
+}
+
+model Tag {
+  id       String       @id @default(cuid())
+  name     String       @unique
+  slug     String       @unique
+  articles ArticleTag[]
+}
+
+model Article {
+  id             String         @id @default(cuid())
+  title          String
+  slug           String         @unique
+  excerpt        String         @default("")
+  content        String         @default("")
+  status         String         @default("DRAFT") // DRAFT | IN_REVIEW | NEEDS_REVISION | APPROVED | PUBLISHED | ARCHIVED
+  coverImageId   String?
+  authorId       String
+  author         User           @relation(fields: [authorId], references: [id])
+  categoryId     String?
+  category       Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  tags           ArticleTag[]
+  seoTitle       String?
+  seoDescription String?
+  noindex        Boolean        @default(false)
+  publishedAt    DateTime?
+  views          Int            @default(0)
+  reviewNote     String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  versions       ArticleVersion[]
+  comments       Comment[]
+
+  @@index([status])
+  @@index([authorId])
+  @@index([publishedAt])
+}
+
+model ArticleVersion {
+  id        String   @id @default(cuid())
+  articleId String
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  title     String
+  content   String
+  excerpt   String
+  editorId  String
+  editorName String
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([articleId])
+}
+
+model ArticleTag {
+  articleId String
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tagId     String
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+}
+
+model Comment {
+  id          String   @id @default(cuid())
+  articleId   String
+  article     Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  authorName  String
+  authorEmail String
+  content     String
+  status      String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  createdAt   DateTime @default(now())
+
+  @@index([status])
+}
+
+// ─── رسانه ────────────────────────────────────────────────────────
+
+model Media {
+  id           String   @id @default(cuid())
+  filename     String   // نام امن روی سرور
+  originalName String   // نام اصلی فایل
+  mimeType     String
+  size         Int      // بایت
+  width        Int?
+  height       Int?
+  altText      String   @default("")
+  data         String   // base64
+  uploadedById String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
+}
+
+// ─── ساختار سایت ──────────────────────────────────────────────────
+
+model Page {
+  id        String   @id @default(cuid())
+  title     String
+  slug      String   @unique
+  content   String   @default("")
+  status    String   @default("DRAFT") // DRAFT | PUBLISHED
+  showInNav Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MenuItem {
+  id    String @id @default(cuid())
+  label String
+  url   String
+  order Int    @default(0)
+}
+
+// ─── فرم‌ها ───────────────────────────────────────────────────────
+
+model FormSubmission {
+  id        String   @id @default(cuid())
+  formName  String   @default("تماس با ما")
+  name      String
+  email     String
+  subject   String
+  message   String
+  status    String   @default("NEW") // NEW | READ | ARCHIVED
+  createdAt DateTime @default(now())
+
+  @@index([status])
+}
+
+// ─── پایش و پیکربندی ──────────────────────────────────────────────
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName    String   @default("سیستم")
+  action      String   // LOGIN, LOGOUT, CREATE, UPDATE, DELETE, PUBLISH, ...
+  entityType  String   // ARTICLE, USER, MEDIA, ...
+  entityId    String?
+  entityTitle String?
+  details     String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entityType])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // REVIEW_REQUEST | APPROVED | REJECTED | PUBLISHED | COMMENT | FORM | ACCESS
+  title     String
+  body      String   @default("")
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([read])
+}
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
