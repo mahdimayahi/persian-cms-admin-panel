@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { MoreHorizontal, Palette, Pencil, Plus, Trash2 } from 'lucide-react'
+import { FolderTree, MoreHorizontal, Palette, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -205,6 +205,7 @@ export function CategoriesView() {
       <PageHeader
         title="دسته‌بندی‌ها"
         description="سازمان‌دهی مقالات بر اساس موضوع"
+        icon={<FolderTree className="h-5 w-5" />}
         actions={
           canManage ? (
             <Button onClick={openCreate} className="gap-1.5">

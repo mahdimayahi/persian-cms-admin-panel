@@ -335,6 +335,7 @@ export function UsersView() {
       <PageHeader
         title="کاربران"
         description="مدیریت حساب‌های کاربری، نقش‌ها و وضعیت دسترسی"
+        icon={<Users className="h-5 w-5" />}
         actions={
           canManage ? (
             <Button onClick={openCreate} className="gap-1.5">

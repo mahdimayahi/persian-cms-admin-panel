@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { MoreHorizontal, Plus, Trash2 } from 'lucide-react'
+import { MoreHorizontal, Plus, Tags, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -157,6 +157,7 @@ export function TagsView() {
       <PageHeader
         title="برچسب‌ها"
         description="برچسب‌گذاری مقالات برای یافتن راحت‌تر"
+        icon={<Tags className="h-5 w-5" />}
         actions={
           canManage ? (
             <Button

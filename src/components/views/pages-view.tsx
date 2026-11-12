@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import ReactMarkdown from 'react-markdown'
-import { Eye, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Eye, LayoutList, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -266,6 +266,7 @@ export function PagesView() {
       <PageHeader
         title="صفحات"
         description="صفحات ثابت سایت مانند «درباره ما» و «تماس با ما»"
+        icon={<LayoutList className="h-5 w-5" />}
         actions={
           canManage ? (
             <Button onClick={openCreate} className="gap-1.5">

@@ -338,6 +338,7 @@ export function FormsView() {
       <PageHeader
         title="پاسخ‌های دریافتی"
         description="پیام‌های ارسالی کاربران از طریق فرم‌های سایت"
+        icon={<ClipboardList className="h-5 w-5" />}
         actions={
           <Button variant="outline" onClick={exportCsv} disabled={exporting} className="gap-1.5">
             <Download className={`h-4 w-4 ${exporting ? 'animate-pulse' : ''}`} />

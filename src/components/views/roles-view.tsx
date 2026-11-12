@@ -32,6 +32,7 @@ export function RolesView() {
       <PageHeader
         title="نقش‌ها و مجوزها"
         description="ماتریس دسترسی نقش‌ها به عملیات سامانه — مجوزها سمت سرور نیز اعمال می‌شوند"
+        icon={<ShieldCheck className="h-5 w-5" />}
       />
 
       {/* کارت نقش‌ها */}

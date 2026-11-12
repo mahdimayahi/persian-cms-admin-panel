@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { ChevronDown, ChevronUp, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, ListTree, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -141,6 +141,7 @@ export function MenusView() {
       <PageHeader
         title="منوها"
         description="مدیریت آیتم‌های منوی اصلی سایت"
+        icon={<ListTree className="h-5 w-5" />}
         actions={
           canManage ? (
             <Button onClick={openCreate} className="gap-1.5">

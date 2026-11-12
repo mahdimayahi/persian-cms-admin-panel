@@ -30,17 +30,29 @@ import { toFa } from '@/lib/client/format'
 export function PageHeader({
   title,
   description,
+  icon,
   actions,
 }: {
   title: string
   description?: string
+  icon?: React.ReactNode
   actions?: React.ReactNode
 }) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-        {description ? <p className="text-sm text-muted-foreground mt-1">{description}</p> : null}
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6 pb-5 border-b">
+      <div className="flex items-start gap-3.5">
+        {icon ? (
+          <span
+            className="rounded-xl bg-gradient-to-br from-primary to-chart-3 text-primary-foreground shadow-md shadow-primary/25 p-2.5 shrink-0"
+            aria-hidden
+          >
+            {icon}
+          </span>
+        ) : null}
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+          {description ? <p className="text-sm text-muted-foreground mt-1 leading-6">{description}</p> : null}
+        </div>
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
@@ -62,7 +74,7 @@ export function StatusBadge({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap',
+        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ring-1 ring-current/15',
         colorClass,
         bgClass
       )}
@@ -88,8 +100,10 @@ export function EmptyState({
   compact?: boolean
 }) {
   return (
-    <div className={cn('flex flex-col items-center justify-center text-center', compact ? 'py-8' : 'py-16')}>
-      <div className="rounded-full bg-muted p-4 text-muted-foreground mb-4">{icon ?? <Inbox className="h-8 w-8" />}</div>
+    <div className={cn('flex flex-col items-center justify-center text-center', compact ? 'py-8' : 'py-14')}>
+      <div className="rounded-2xl border-2 border-dashed bg-muted/40 p-4 text-muted-foreground mb-4 shadow-inner">
+        {icon ?? <Inbox className="h-8 w-8" />}
+      </div>
       <h3 className="text-base font-semibold">{title}</h3>
       {description ? <p className="text-sm text-muted-foreground mt-1 max-w-sm">{description}</p> : null}
       {action ? <div className="mt-4">{action}</div> : null}
@@ -175,12 +189,12 @@ export function SearchInput({
 }) {
   return (
     <div className={cn('relative', className)}>
-      <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" aria-hidden />
+      <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" aria-hidden />
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="ps-8 pe-8 bg-background"
+        className="ps-9 pe-9 bg-background rounded-xl"
         aria-label={placeholder}
       />
       {value ? (
@@ -221,7 +235,7 @@ export function ConfirmDialog({
 }) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent {...(description ? {} : ({ 'aria-describedby': undefined } as const))}>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           {description ? <AlertDialogDescription>{description}</AlertDialogDescription> : null}

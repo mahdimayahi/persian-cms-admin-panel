@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Check, MoreHorizontal, Trash2, X } from 'lucide-react'
+import { Check, MessagesSquare, MoreHorizontal, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -274,7 +274,7 @@ export function CommentsView() {
 
   return (
     <div>
-      <PageHeader title="دیدگاه‌ها" description="بازبینی و مدیریت دیدگاه‌های بازدیدکنندگان" />
+      <PageHeader title="دیدگاه‌ها" description="بازبینی و مدیریت دیدگاه‌های بازدیدکنندگان" icon={<MessagesSquare className="h-5 w-5" />} />
 
       {/* تب‌های وضعیت */}
       <Tabs

@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { AlertTriangle, KeyRound, Loader2, LogOut, Monitor, ShieldAlert } from 'lucide-react'
+import { AlertTriangle, KeyRound, Loader2, LogOut, Monitor, ShieldAlert, UserRound } from 'lucide-react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -117,7 +117,7 @@ export function AccountView() {
 
   return (
     <div>
-      <PageHeader title="حساب من" description="مشاهده اطلاعات حساب و مدیریت امنیت نشست‌ها" />
+      <PageHeader title="حساب من" description="مشاهده اطلاعات حساب و مدیریت امنیت نشست‌ها" icon={<UserRound className="h-5 w-5" />} />
 
       <Tabs
         value={activeTab}

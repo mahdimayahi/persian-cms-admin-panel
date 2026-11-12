@@ -174,6 +174,7 @@ export function ActivityView() {
       <PageHeader
         title="تاریخچه فعالیت‌ها"
         description="ثبت عملیات کاربران برای پاسخ‌گویی و ردگیری تغییرات (Audit Log)"
+        icon={<History className="h-5 w-5" />}
       />
 
       <Alert className="mb-4">

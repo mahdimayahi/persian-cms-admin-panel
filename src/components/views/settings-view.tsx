@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { AlertTriangle, Loader2, Save } from 'lucide-react'
+import { AlertTriangle, Loader2, Save, Settings } from 'lucide-react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -133,6 +133,7 @@ export function SettingsView() {
       <PageHeader
         title="تنظیمات"
         description="پیکربندی عمومی سامانه که در سایت عمومی و پنل مدیریت اعمال می‌شود"
+        icon={<Settings className="h-5 w-5" />}
         actions={
           <Button type="submit" form="settings-form" disabled={!canManage || saving || !dirty} className="gap-1.5">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}

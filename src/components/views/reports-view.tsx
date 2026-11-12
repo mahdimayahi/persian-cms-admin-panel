@@ -154,6 +154,7 @@ export function ReportsView() {
       <PageHeader
         title="گزارش‌ها"
         description="نمای کلی آمار محتوا، کاربران و تعامل‌های سامانه"
+        icon={<BarChart3 className="h-5 w-5" />}
         actions={
           <>
             <Button variant="outline" onClick={load} disabled={loading} className="gap-1.5">

@@ -5,9 +5,11 @@ import {
   Activity,
   Bell,
   ChevronDown,
+  ChevronLeft,
   FileText,
   FolderTree,
   Gauge,
+  Home,
   Image as ImageIcon,
   LayoutList,
   LogOut,
@@ -22,6 +24,7 @@ import {
   UserRound,
   Users,
   Wrench,
+  X,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
@@ -38,7 +41,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { Sheet, SheetClose, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { apiGet, apiPost, apiPut } from '@/lib/client/api'
@@ -133,6 +136,7 @@ function initials(name: string): string {
   return (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')
 }
 
+/* ─── محتوای نوار کناری (تم تیره ثابت) ───────────────────────── */
 export function SidebarContent({
   path,
   navigate,
@@ -148,30 +152,47 @@ export function SidebarContent({
   const isActive = (href: string) => path === href || path.startsWith(href + '/')
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="px-5 py-5 border-b">
-        <div className="flex items-center gap-2.5">
-          <div className="h-9 w-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold">پ</div>
-          <div>
-            <p className="font-bold text-sm leading-5">پنل مدیریت محتوا</p>
-            <p className="text-xs text-muted-foreground">سامانه عملیاتی محتوا</p>
+    <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground">
+      {/* برند */}
+      <div className="relative px-5 pt-5 pb-4 border-b border-sidebar-border overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-l from-primary/15 to-transparent" aria-hidden />
+        <div className="relative flex items-center gap-3">
+          <div className="logo-ring animate-gradient-x h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-chart-3 text-primary-foreground flex items-center justify-center text-lg font-bold shrink-0">
+            پ
+          </div>
+          <div className="min-w-0">
+            <p className="font-bold text-sm leading-5 truncate">پنل مدیریت محتوا</p>
+            <p className="text-[11px] text-sidebar-foreground/55">سامانه عملیاتی محتوا</p>
           </div>
         </div>
       </div>
+
+      {/* منو */}
       <ScrollArea className="flex-1 px-3 py-4">
-        <nav aria-label="منوی اصلی" className="space-y-5">
+        <nav aria-label="منوی اصلی" className="space-y-6">
           {MENU.map((group, gi) => {
             const visibleItems = group.items.filter((it) => can(it.perm))
             if (visibleItems.length === 0) return null
             return (
               <div key={group.group ?? gi}>
-                {group.group ? <p className="text-xs font-medium text-muted-foreground px-2.5 mb-1.5">{group.group}</p> : null}
-                <ul className="space-y-0.5">
+                {group.group ? (
+                  <p className="text-[10px] font-semibold tracking-widest text-sidebar-foreground/40 px-3 mb-2">
+                    {group.group}
+                  </p>
+                ) : null}
+                <ul className="space-y-1">
                   {visibleItems.map((item) => {
                     const Icon = item.icon
                     const active = isActive(item.href)
                     return (
-                      <li key={item.href}>
+                      <li key={item.href} className="relative">
+                        {/* نشانگر فعال */}
+                        {active ? (
+                          <span
+                            className="absolute inset-y-1.5 start-0 w-1 rounded-full bg-gradient-to-b from-primary to-chart-3"
+                            aria-hidden
+                          />
+                        ) : null}
                         <button
                           type="button"
                           onClick={() => {
@@ -180,12 +201,21 @@ export function SidebarContent({
                           }}
                           aria-current={active ? 'page' : undefined}
                           className={cn(
-                            'w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors text-start',
-                            active ? 'bg-primary text-primary-foreground font-medium' : 'text-foreground/80 hover:bg-muted'
+                            'group w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm transition-all text-start',
+                            active
+                              ? 'bg-sidebar-primary/20 text-sidebar-primary-foreground font-semibold shadow-sm'
+                              : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-foreground/5'
                           )}
                         >
-                          <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                          <Icon
+                            className={cn(
+                              'h-4 w-4 shrink-0 transition-colors',
+                              active ? 'text-chart-2' : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80'
+                            )}
+                            aria-hidden
+                          />
                           {item.label}
+                          {active ? <ChevronLeft className="h-3.5 w-3.5 ms-auto text-chart-2/70" aria-hidden /> : null}
                         </button>
                       </li>
                     )
@@ -195,8 +225,15 @@ export function SidebarContent({
             )
           })}
           <div>
+            <p className="text-[10px] font-semibold tracking-widest text-sidebar-foreground/40 px-3 mb-2">حساب</p>
             <ul>
-              <li>
+              <li className="relative">
+                {path.startsWith('/account') ? (
+                  <span
+                    className="absolute inset-y-1.5 start-0 w-1 rounded-full bg-gradient-to-b from-primary to-chart-3"
+                    aria-hidden
+                  />
+                ) : null}
                 <button
                   type="button"
                   onClick={() => {
@@ -205,11 +242,19 @@ export function SidebarContent({
                   }}
                   aria-current={path.startsWith('/account') ? 'page' : undefined}
                   className={cn(
-                    'w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors text-start',
-                    path.startsWith('/account') ? 'bg-primary text-primary-foreground font-medium' : 'text-foreground/80 hover:bg-muted'
+                    'group w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm transition-all text-start',
+                    path.startsWith('/account')
+                      ? 'bg-sidebar-primary/20 text-sidebar-primary-foreground font-semibold shadow-sm'
+                      : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-foreground/5'
                   )}
                 >
-                  <UserRound className="h-4 w-4 shrink-0" aria-hidden />
+                  <UserRound
+                    className={cn(
+                      'h-4 w-4 shrink-0',
+                      path.startsWith('/account') ? 'text-chart-2' : 'text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80'
+                    )}
+                    aria-hidden
+                  />
                   حساب من
                 </button>
               </li>
@@ -217,13 +262,19 @@ export function SidebarContent({
           </div>
         </nav>
       </ScrollArea>
-      <div className="border-t px-5 py-3">
-        <p className="text-xs text-muted-foreground">نسخه {toFa(1.0, { maximumFractionDigits: 1 })} · عملیات حساس ثبت می‌شوند</p>
+
+      {/* پانویس نوار کناری */}
+      <div className="border-t border-sidebar-border px-5 py-3.5">
+        <div className="flex items-center gap-2 text-[11px] text-sidebar-foreground/45">
+          <span className="h-1.5 w-1.5 rounded-full bg-chart-2 shadow-[0_0_8px_oklch(0.75_0.135_80)]" aria-hidden />
+          نسخه {toFa(2, { maximumFractionDigits: 0 })} — طراحی زمردی
+        </div>
       </div>
     </div>
   )
 }
 
+/* ─── اعلان‌ها ───────────────────────────────────────────────── */
 function NotificationsBell() {
   const [open, setOpen] = React.useState(false)
   const [items, setItems] = React.useState<NotificationItem[]>([])
@@ -265,20 +316,27 @@ function NotificationsBell() {
         <Button
           variant="ghost"
           size="icon"
-          className="relative"
+          className="relative rounded-xl hover:bg-muted"
           aria-label={`اعلان‌ها${unreadCount ? `، ${toFa(unreadCount)} خوانده‌نشده` : ''}`}
         >
           <Bell className="h-5 w-5" />
           {unreadCount > 0 ? (
-            <span className="absolute -top-0.5 -end-0.5 h-4 min-w-4 rounded-full bg-destructive text-[10px] leading-4 text-white flex items-center justify-center px-1">
+            <span className="absolute -top-0.5 -end-0.5 h-4.5 min-w-4.5 rounded-full bg-gradient-to-br from-destructive to-chart-4 text-[10px] leading-4 text-white flex items-center justify-center px-1 shadow-sm">
               {unreadCount > 9 ? '۹+' : toFa(unreadCount)}
             </span>
           ) : null}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-96 p-0" dir="rtl">
+      <PopoverContent align="end" className="w-96 p-0 rounded-2xl" dir="rtl">
         <div className="flex items-center justify-between px-4 py-3 border-b">
-          <p className="font-semibold text-sm">اعلان‌ها</p>
+          <p className="font-semibold text-sm flex items-center gap-2">
+            اعلان‌ها
+            {unreadCount > 0 ? (
+              <span className="rounded-full bg-primary/10 text-primary text-[10px] px-2 py-0.5 font-semibold">
+                {toFa(unreadCount)} جدید
+              </span>
+            ) : null}
+          </p>
           {unreadCount > 0 ? (
             <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => markRead()}>
               خواندن همه
@@ -289,7 +347,7 @@ function NotificationsBell() {
           {loading && items.length === 0 ? (
             <div className="p-4 space-y-3">
               {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
+                <Skeleton key={i} className="h-12 w-full rounded-xl" />
               ))}
             </div>
           ) : items.length === 0 ? (
@@ -324,6 +382,7 @@ function NotificationsBell() {
   )
 }
 
+/* ─── جست‌وجوی سراسری ────────────────────────────────────────── */
 function GlobalSearch() {
   const [q, setQ] = React.useState('')
   const [results, setResults] = React.useState<SearchResult | null>(null)
@@ -370,7 +429,7 @@ function GlobalSearch() {
 
   return (
     <div ref={boxRef} className="relative w-full max-w-sm hidden md:block" role="search">
-      <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" aria-hidden />
+      <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" aria-hidden />
       <Input
         value={q}
         onChange={(e) => setQ(e.target.value)}
@@ -378,11 +437,11 @@ function GlobalSearch() {
           if (q.trim().length >= 2 && results) setOpen(true)
         }}
         placeholder="جست‌وجوی سراسری…"
-        className="ps-8 bg-muted/50 border-transparent focus-visible:bg-background"
+        className="ps-9 rounded-xl bg-muted/60 border-transparent focus-visible:bg-background focus-visible:border-ring h-9.5"
         aria-label="جست‌وجوی سراسری"
       />
       {open ? (
-        <div className="absolute top-full mt-2 w-full rounded-lg border bg-popover shadow-md z-50 overflow-hidden">
+        <div className="absolute top-full mt-2 w-full rounded-2xl border bg-popover shadow-lg z-50 overflow-hidden">
           {loading ? (
             <p className="text-sm text-muted-foreground p-4">در حال جست‌وجو…</p>
           ) : !hasResults ? (
@@ -398,7 +457,7 @@ function GlobalSearch() {
                         key={a.id}
                         type="button"
                         onClick={() => go(`#/articles/${a.id}/edit`)}
-                        className="w-full text-start px-2 py-1.5 rounded hover:bg-muted text-sm flex items-center justify-between gap-2"
+                        className="w-full text-start px-2 py-1.5 rounded-lg hover:bg-muted text-sm flex items-center justify-between gap-2"
                       >
                         <span className="truncate">{a.title}</span>
                         <span className="text-[10px] text-muted-foreground shrink-0">مقاله</span>
@@ -414,7 +473,7 @@ function GlobalSearch() {
                         key={p.id}
                         type="button"
                         onClick={() => go('#/pages')}
-                        className="w-full text-start px-2 py-1.5 rounded hover:bg-muted text-sm flex items-center justify-between gap-2"
+                        className="w-full text-start px-2 py-1.5 rounded-lg hover:bg-muted text-sm flex items-center justify-between gap-2"
                       >
                         <span className="truncate">{p.title}</span>
                         <span className="text-[10px] text-muted-foreground shrink-0">صفحه</span>
@@ -430,7 +489,7 @@ function GlobalSearch() {
                         key={m.id}
                         type="button"
                         onClick={() => go('#/media')}
-                        className="w-full text-start px-2 py-1.5 rounded hover:bg-muted text-sm flex items-center justify-between gap-2"
+                        className="w-full text-start px-2 py-1.5 rounded-lg hover:bg-muted text-sm flex items-center justify-between gap-2"
                       >
                         <span className="truncate">{m.originalName}</span>
                         <span className="text-[10px] text-muted-foreground shrink-0">فایل</span>
@@ -446,7 +505,7 @@ function GlobalSearch() {
                         key={u.id}
                         type="button"
                         onClick={() => go('#/users')}
-                        className="w-full text-start px-2 py-1.5 rounded hover:bg-muted text-sm flex items-center justify-between gap-2"
+                        className="w-full text-start px-2 py-1.5 rounded-lg hover:bg-muted text-sm flex items-center justify-between gap-2"
                       >
                         <span className="truncate">{u.name}</span>
                         <span className="text-[10px] text-muted-foreground shrink-0">کاربر</span>
@@ -463,6 +522,7 @@ function GlobalSearch() {
   )
 }
 
+/* ─── تغییر تم ───────────────────────────────────────────────── */
 function ThemeToggle() {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = React.useState(false)
@@ -471,6 +531,7 @@ function ThemeToggle() {
     <Button
       variant="ghost"
       size="icon"
+      className="rounded-xl hover:bg-muted"
       onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
       aria-label={mounted && theme === 'dark' ? 'تغییر به حالت روشن' : 'تغییر به حالت تیره'}
     >
@@ -479,6 +540,7 @@ function ThemeToggle() {
   )
 }
 
+/* ─── منوی کاربر ─────────────────────────────────────────────── */
 function UserMenu() {
   const user = useAppStore((s) => s.user)
   const logout = useAppStore((s) => s.logout)
@@ -497,23 +559,25 @@ function UserMenu() {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex items-center gap-2 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted p-1 ps-2 transition-colors"
           aria-label="منوی حساب کاربری"
         >
-          <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">{initials(user.name)}</AvatarFallback>
+          <Avatar className="h-8 w-8 ring-2 ring-primary/20">
+            <AvatarFallback className="bg-gradient-to-br from-primary to-chart-3 text-primary-foreground text-xs font-bold">
+              {initials(user.name)}
+            </AvatarFallback>
           </Avatar>
           <span className="hidden lg:inline text-sm font-medium">{user.name}</span>
           <ChevronDown className="h-3.5 w-3.5 text-muted-foreground hidden lg:inline" aria-hidden />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-56 rounded-xl">
         <DropdownMenuLabel>
           <p className="font-semibold">{user.name}</p>
           <p className="text-xs text-muted-foreground font-normal text-start" dir="ltr">
             {user.email}
           </p>
-          <Badge variant="secondary" className="mt-1.5 pointer-events-none">
+          <Badge variant="secondary" className="mt-1.5 pointer-events-none bg-primary/10 text-primary">
             {ROLE_LABELS[user.role as Role] ?? user.role}
           </Badge>
         </DropdownMenuLabel>
@@ -531,6 +595,7 @@ function UserMenu() {
   )
 }
 
+/* ─── پوسته اصلی پنل ─────────────────────────────────────────── */
 export function AdminShell({
   path,
   navigate,
@@ -548,10 +613,15 @@ export function AdminShell({
     '/articles/new': 'مقاله جدید',
     '/account/security': 'امنیت',
   }
-  const subCrumb = path.startsWith('/articles/') && path !== '/articles' ? (path === '/articles/new' ? 'مقاله جدید' : 'ویرایش مقاله') : deepLabels[path]
+  const subCrumb =
+    path.startsWith('/articles/') && path !== '/articles'
+      ? path === '/articles/new'
+        ? 'مقاله جدید'
+        : 'ویرایش مقاله'
+      : deepLabels[path]
 
   return (
-    <div className="min-h-screen flex flex-col bg-muted/30">
+    <div className="min-h-screen flex flex-col bg-background">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:start-2 focus:z-[100] focus:bg-primary focus:text-primary-foreground focus:px-3 focus:py-1.5 focus:rounded-md"
@@ -559,68 +629,99 @@ export function AdminShell({
         پرش به محتوای اصلی
       </a>
       <div className="flex flex-1 min-h-0">
-        {/* نوار کناری — دسکتاپ */}
-        <aside className="hidden lg:block w-64 shrink-0 border-e bg-background" aria-label="نوار کناری">
-          <div className="sticky top-0 h-screen">
+        {/* نوار کناری تیره — دسکتاپ */}
+        <aside className="hidden lg:block w-64 shrink-0" aria-label="نوار کناری">
+          <div className="sticky top-0 h-screen shadow-[-8px_0_32px_-16px_oklch(0.2_0.03_168/0.35)]">
             <SidebarContent path={path} navigate={navigate} />
           </div>
         </aside>
 
         {/* نوار کناری — موبایل */}
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetContent side="right" className="p-0 w-72" dir="rtl">
+          <SheetContent side="right" className="p-0 w-72 border-s-0 [&>button:last-of-type]:hidden" dir="rtl">
             <SheetTitle className="sr-only">منوی اصلی</SheetTitle>
             <SidebarContent path={path} navigate={navigate} onNavigate={() => setMobileOpen(false)} />
+            <SheetClose asChild>
+              <button
+                type="button"
+                className="absolute top-3.5 end-3 z-30 rounded-lg bg-sidebar-foreground/10 p-1.5 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-foreground/20 transition-colors"
+                aria-label="بستن منو"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </SheetClose>
           </SheetContent>
         </Sheet>
 
         <div className="flex-1 flex flex-col min-w-0">
-          {/* سربرگ */}
-          <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-            <div className="flex items-center gap-2 px-4 h-14">
-              <Sheet>
-                <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" className="lg:hidden" aria-label="بازکردن منو">
-                    <MenuIcon className="h-5 w-5" />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="right" className="p-0 w-72" dir="rtl">
-                  <SheetTitle className="sr-only">منوی اصلی</SheetTitle>
-                  <SidebarContent path={path} navigate={navigate} />
-                </SheetContent>
-              </Sheet>
-              <GlobalSearch />
+          {/* سربرگ شیشه‌ای */}
+          <header className="sticky top-0 z-40 glass border-b">
+            <div className="flex items-center gap-2 px-4 h-16">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="lg:hidden rounded-xl"
+                aria-label="بازکردن منو"
+                onClick={() => setMobileOpen(true)}
+              >
+                <MenuIcon className="h-5 w-5" />
+              </Button>
+
+              {/* مسیر راهنما درون هدر */}
+              <nav
+                aria-label="مسیر راهنما"
+                className="hidden sm:flex items-center gap-1.5 text-sm text-muted-foreground min-w-0"
+              >
+                <span className="rounded-lg bg-muted/70 p-1.5 text-primary shrink-0" aria-hidden>
+                  <Home className="h-3.5 w-3.5" />
+                </span>
+                <span className="truncate">{crumb}</span>
+                {subCrumb ? (
+                  <>
+                    <ChevronLeft className="h-3.5 w-3.5 shrink-0 opacity-50" aria-hidden />
+                    <span className="text-foreground font-semibold truncate">{subCrumb}</span>
+                  </>
+                ) : null}
+              </nav>
+
               <div className="flex-1" />
+              <GlobalSearch />
+              <div className="h-6 w-px bg-border mx-1 hidden md:block" aria-hidden />
               <NotificationsBell />
               <ThemeToggle />
               <UserMenu />
             </div>
           </header>
 
-          {/* مسیر راهنما */}
-          <div className="px-4 lg:px-6 pt-4">
-            <nav aria-label="مسیر راهنما" className="text-sm text-muted-foreground flex items-center gap-1.5 flex-wrap">
-              <span>{crumb}</span>
-              {subCrumb ? (
-                <>
-                  <span aria-hidden>/</span>
-                  <span className="text-foreground font-medium">{subCrumb}</span>
-                </>
-              ) : null}
-            </nav>
-          </div>
-
-          {/* محتوای اصلی */}
-          <main id="main-content" className="flex-1 px-4 lg:px-6 py-4 pb-8 w-full max-w-7xl mx-auto">
-            {children}
+          {/* محتوای اصلی روی پس‌زمینه ملایم */}
+          <main
+            id="main-content"
+            className="relative flex-1 px-4 lg:px-8 py-6 pb-10 w-full max-w-7xl mx-auto"
+          >
+            <div
+              className="pointer-events-none absolute top-0 inset-x-0 h-48 bg-gradient-to-b from-primary/5 to-transparent"
+              aria-hidden
+            />
+            <div className="relative">{children}</div>
           </main>
 
           {/* فوتر چسبان */}
-          <footer className="mt-auto border-t bg-background">
-            <div className="px-4 lg:px-6 h-12 flex items-center justify-between gap-4 text-xs text-muted-foreground">
-              <p>پنل مدیریت محتوا — سامانه عملیاتی تولید و انتشار محتوا</p>
+          <footer className="mt-auto border-t bg-card/60">
+            <div className="px-4 lg:px-8 h-12 flex items-center justify-between gap-4 text-xs text-muted-foreground">
+              <p className="flex items-center gap-2">
+                <span
+                  className="h-4.5 w-4.5 rounded-md bg-gradient-to-br from-primary to-chart-3 flex items-center justify-center text-primary-foreground text-[9px] font-bold"
+                  aria-hidden
+                >
+                  پ
+                </span>
+                پنل مدیریت محتوا — سامانه عملیاتی تولید و انتشار
+              </p>
               <p className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
+                <span className="relative flex h-2 w-2" aria-hidden>
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-40" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+                </span>
                 سرویس فعال
               </p>
             </div>

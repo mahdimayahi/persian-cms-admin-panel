@@ -12,6 +12,7 @@ import {
   Image as ImageIcon,
   Inbox,
   MessagesSquare,
+  Plus,
   RefreshCw,
   Users,
   Wrench,
@@ -26,6 +27,7 @@ import { faDateTime, shortFaDate, timeAgo, toFa } from '@/lib/client/format'
 import { useAppStore, useCan } from '@/store/app-store'
 import { articleStatusInfo } from '@/lib/constants'
 import { navigate } from '@/hooks/use-hash-route'
+import { cn } from '@/lib/utils'
 
 type DashboardData = {
   stats: {
@@ -63,35 +65,66 @@ const ACTION_LABELS: Record<string, string> = {
   MODERATE: 'بازبینی دیدگاه',
 }
 
+const ACTION_ICONS: Record<string, React.ElementType> = {
+  LOGIN: Users,
+  LOGOUT: Users,
+  CREATE: Plus,
+  UPDATE: FileEdit,
+  PUBLISH: CheckCircle2,
+  SUBMIT_REVIEW: Clock,
+  APPROVE: CheckCircle2,
+  UPLOAD: ImageIcon,
+  MODERATE: MessagesSquare,
+}
+
+/* رنگ کاشی هر شاخص — پالت زمردی/کهربایی/فیروزه‌ای/گلگون */
+const KPI_TILES = [
+  'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  'bg-amber-500/10 text-amber-600 dark:text-amber-500',
+  'bg-teal-500/10 text-teal-600 dark:text-teal-400',
+  'bg-rose-500/10 text-rose-600 dark:text-rose-400',
+  'bg-lime-500/10 text-lime-600 dark:text-lime-500',
+  'bg-violet-500/10 text-violet-600 dark:text-violet-400',
+  'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400',
+  'bg-orange-500/10 text-orange-600 dark:text-orange-500',
+]
+
 function KpiCard({
   label,
   value,
   icon: Icon,
   hint,
+  tile,
   onClick,
 }: {
   label: string
   value: number
   icon: React.ElementType
   hint?: string
+  tile: string
   onClick?: () => void
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="text-start rounded-xl border bg-card p-4 transition hover:border-primary/40 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
+      className="card-lift text-start rounded-2xl border bg-card p-4 shadow-xs focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default group"
       disabled={!onClick}
       aria-label={`${label}: ${value}`}
     >
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <div className="rounded-lg bg-primary/10 p-1.5">
-          <Icon className="h-4 w-4 text-primary" aria-hidden />
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[13px] text-muted-foreground">{label}</p>
+        <div className={cn('rounded-xl p-2 transition-transform group-hover:scale-110', tile)}>
+          <Icon className="h-4 w-4" aria-hidden />
         </div>
       </div>
-      <p className="text-2xl font-bold mt-2 tabular-nums">{toFa(value)}</p>
-      {hint ? <p className="text-xs text-muted-foreground mt-1">{hint}</p> : null}
+      <p className="text-[26px] font-bold mt-2 tabular-nums leading-8">{toFa(value)}</p>
+      {hint ? (
+        <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
+          {hint}
+          {onClick ? <ArrowLeft className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" aria-hidden /> : null}
+        </p>
+      ) : null}
     </button>
   )
 }
@@ -130,36 +163,66 @@ export function DashboardView() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">داشبورد</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {user?.name} عزیز، خوش آمدید. آخرین به‌روزرسانی: {faDateTime(data.generatedAt)}
-          </p>
+      {/* ── بنر خوش‌آمد گرادیانی ─────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl bg-sidebar text-sidebar-foreground p-6 sm:p-7 shadow-md">
+        <div className="absolute inset-0 bg-gradient-to-bl from-primary/30 via-transparent to-chart-3/15" aria-hidden />
+        <div className="absolute inset-0 pattern-grid" aria-hidden />
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <p className="text-xs text-sidebar-foreground/60 mb-1.5">{faDateTime(data.generatedAt)}</p>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+              {user?.name} عزیز، خوش آمدید
+            </h1>
+            <p className="text-sm text-sidebar-foreground/65 mt-1.5">
+              امروز {toFa(s.inReview)} مطلب در انتظار بازبینی و {toFa(s.pendingComments)} دیدگاه برای بررسی دارید.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              onClick={() => navigate('/articles/new')}
+              className="gap-1.5 rounded-xl shadow-md shadow-primary/30 bg-primary hover:bg-primary/90"
+            >
+              <Plus className="h-4 w-4" />
+              مقاله جدید
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={load}
+              disabled={loading}
+              className="gap-1.5 rounded-xl border-sidebar-foreground/20 bg-sidebar-foreground/5 text-sidebar-foreground hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+              به‌روزرسانی
+            </Button>
+          </div>
         </div>
-        <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-1.5 w-fit">
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          به‌روزرسانی
-        </Button>
       </div>
 
-      {/* شاخص‌های کلیدی */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard label="کل مقالات" value={s.totalArticles} icon={FileText} onClick={() => navigate('/articles')} />
-        <KpiCard label="منتشرشده" value={s.published} icon={CheckCircle2} hint="در دسترس عمومی" onClick={() => navigate('/articles')} />
-        <KpiCard label="در انتظار بررسی" value={s.inReview} icon={Clock} hint="نیازمند بازبینی" onClick={hasReview ? () => navigate('/articles') : undefined} />
-        <KpiCard label="بازدید کل" value={s.totalViews} icon={Eye} />
-        <KpiCard label="دیدگاه در انتظار" value={s.pendingComments} icon={MessagesSquare} onClick={can('comments.moderate') ? () => navigate('/comments') : undefined} />
-        <KpiCard label="کاربران فعال" value={s.totalUsers} icon={Users} onClick={can('users.manage') ? () => navigate('/users') : undefined} />
-        <KpiCard label="فایل‌های رسانه" value={s.mediaCount} icon={ImageIcon} onClick={() => navigate('/media')} />
-        <KpiCard label="پاسخ جدید فرم" value={s.newForms} icon={Wrench} onClick={can('forms.view') ? () => navigate('/forms') : undefined} />
+      {/* ── شاخص‌های کلیدی ────────────────────────────────────── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+        <KpiCard label="کل مقالات" value={s.totalArticles} icon={FileText} tile={KPI_TILES[0]} onClick={() => navigate('/articles')} />
+        <KpiCard label="منتشرشده" value={s.published} icon={CheckCircle2} hint="در دسترس عمومی" tile={KPI_TILES[1]} onClick={() => navigate('/articles')} />
+        <KpiCard label="در انتظار بررسی" value={s.inReview} icon={Clock} hint="نیازمند بازبینی" tile={KPI_TILES[3]} onClick={hasReview ? () => navigate('/articles') : undefined} />
+        <KpiCard label="بازدید کل" value={s.totalViews} icon={Eye} tile={KPI_TILES[2]} />
+        <KpiCard label="دیدگاه در انتظار" value={s.pendingComments} icon={MessagesSquare} tile={KPI_TILES[4]} onClick={can('comments.moderate') ? () => navigate('/comments') : undefined} />
+        <KpiCard label="کاربران فعال" value={s.totalUsers} icon={Users} tile={KPI_TILES[5]} onClick={can('users.manage') ? () => navigate('/users') : undefined} />
+        <KpiCard label="فایل‌های رسانه" value={s.mediaCount} icon={ImageIcon} tile={KPI_TILES[6]} onClick={() => navigate('/media')} />
+        <KpiCard label="پاسخ جدید فرم" value={s.newForms} icon={Wrench} tile={KPI_TILES[7]} onClick={can('forms.view') ? () => navigate('/forms') : undefined} />
       </div>
 
+      {/* ── روند + وظایف ──────────────────────────────────────── */}
       <div className="grid lg:grid-cols-3 gap-4">
         {/* روند انتشار */}
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 rounded-2xl shadow-xs">
           <CardHeader>
-            <CardTitle className="text-base">روند انتشار محتوا — ۱۴ روز گذشته</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2">
+              <span className="rounded-lg bg-primary/10 p-1.5 text-primary" aria-hidden>
+                <FileText className="h-4 w-4" />
+              </span>
+              روند انتشار محتوا — ۱۴ روز گذشته
+            </CardTitle>
             <CardDescription>تعداد مقالات منتشرشده در هر روز (منطقه زمانی تهران)</CardDescription>
           </CardHeader>
           <CardContent dir="ltr">
@@ -173,18 +236,18 @@ export function DashboardView() {
                   <AreaChart data={trendData} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
                     <defs>
                       <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="currentColor" className="text-primary" stopOpacity={0.3} />
-                        <stop offset="100%" stopColor="currentColor" className="text-primary" stopOpacity={0} />
+                        <stop offset="0%" stopColor="currentColor" className="text-chart-1" stopOpacity={0.35} />
+                        <stop offset="100%" stopColor="currentColor" className="text-chart-1" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-border" vertical={false} />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                     <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} width={30} />
                     <Tooltip
-                      contentStyle={{ direction: 'rtl', fontFamily: 'Vazirmatn, Tahoma', fontSize: 12, borderRadius: 8 }}
+                      contentStyle={{ direction: 'rtl', fontFamily: 'Vazirmatn, Tahoma', fontSize: 12, borderRadius: 12, borderColor: 'var(--border)' }}
                       formatter={(value) => [`${toFa(Number(value))} مقاله`, 'منتشرشده']}
                     />
-                    <Area type="monotone" dataKey="count" stroke="currentColor" className="text-primary" strokeWidth={2} fill="url(#trendFill)" />
+                    <Area type="monotone" dataKey="count" stroke="currentColor" className="text-chart-1" strokeWidth={2.5} fill="url(#trendFill)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -193,9 +256,14 @@ export function DashboardView() {
         </Card>
 
         {/* وظایف کاربر */}
-        <Card>
+        <Card className="rounded-2xl shadow-xs">
           <CardHeader>
-            <CardTitle className="text-base">{hasReview ? 'در انتظار بررسی شما' : 'پیش‌نویس‌های من'}</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2">
+              <span className="rounded-lg bg-amber-500/10 p-1.5 text-amber-600 dark:text-amber-500" aria-hidden>
+                <Clock className="h-4 w-4" />
+              </span>
+              {hasReview ? 'در انتظار بررسی شما' : 'پیش‌نویس‌های من'}
+            </CardTitle>
             <CardDescription>{hasReview ? 'محتوایی که منتظر تأیید یا انتشار است' : 'محتوای نیمه‌تمام شما'}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 max-h-72 overflow-y-auto">
@@ -208,14 +276,14 @@ export function DashboardView() {
                     key={a.id}
                     type="button"
                     onClick={() => navigate(`/articles/${a.id}/edit`)}
-                    className="w-full text-start rounded-lg border p-3 hover:border-primary/40 transition focus-visible:ring-2 focus-visible:ring-ring"
+                    className="w-full text-start rounded-xl border p-3 transition hover:border-primary/50 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring group"
                   >
                     <p className="text-sm font-medium line-clamp-1">{a.title}</p>
                     <div className="flex items-center justify-between mt-1.5">
                       <span className="text-xs text-muted-foreground">
                         {a.author.name} · {timeAgo(a.updatedAt)}
                       </span>
-                      <ArrowLeft className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                      <ArrowLeft className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary group-hover:-translate-x-0.5 transition" aria-hidden />
                     </div>
                   </button>
                 ))
@@ -230,7 +298,7 @@ export function DashboardView() {
                     key={a.id}
                     type="button"
                     onClick={() => navigate(`/articles/${a.id}/edit`)}
-                    className="w-full text-start rounded-lg border p-3 hover:border-primary/40 transition focus-visible:ring-2 focus-visible:ring-ring"
+                    className="w-full text-start rounded-xl border p-3 transition hover:border-primary/50 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring group"
                   >
                     <p className="text-sm font-medium line-clamp-1">{a.title}</p>
                     <div className="flex items-center justify-between mt-1.5">
@@ -245,16 +313,22 @@ export function DashboardView() {
         </Card>
       </div>
 
-      {/* فعالیت‌های اخیر */}
-      <Card>
+      {/* ── فعالیت‌های اخیر (خط زمانی) ─────────────────────────── */}
+      <Card className="rounded-2xl shadow-xs card-accent-top">
         <CardHeader className="flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-base">فعالیت‌های اخیر</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2">
+              <span className="rounded-lg bg-violet-500/10 p-1.5 text-violet-600 dark:text-violet-400" aria-hidden>
+                <Bell className="h-4 w-4" />
+              </span>
+              فعالیت‌های اخیر
+            </CardTitle>
             <CardDescription>آخرین عملیات ثبت‌شده در سامانه</CardDescription>
           </div>
           {can('activity.view') ? (
-            <Button variant="ghost" size="sm" onClick={() => navigate('/activity')}>
+            <Button variant="ghost" size="sm" className="gap-1" onClick={() => navigate('/activity')}>
               مشاهده همه
+              <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
             </Button>
           ) : null}
         </CardHeader>
@@ -262,22 +336,30 @@ export function DashboardView() {
           {data.recentActivity.length === 0 ? (
             <EmptyState compact title="فعالیتی ثبت نشده" icon={<Inbox className="h-6 w-6" />} />
           ) : (
-            <ul className="divide-y">
-              {data.recentActivity.map((log) => (
-                <li key={log.id} className="flex items-start gap-3 py-2.5">
-                  <div className="rounded-full bg-muted p-1.5 shrink-0">
-                    <Bell className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm">
-                      <span className="font-medium">{log.userName}</span> — {ACTION_LABELS[log.action] ?? log.action}
-                      {log.entityTitle ? <span className="text-muted-foreground"> · {log.entityTitle}</span> : null}
-                    </p>
-                    {log.details ? <p className="text-xs text-muted-foreground mt-0.5">{log.details}</p> : null}
-                  </div>
-                  <span className="text-xs text-muted-foreground shrink-0">{timeAgo(log.createdAt)}</span>
-                </li>
-              ))}
+            <ul className="relative space-y-1">
+              {data.recentActivity.map((log, idx) => {
+                const ActionIcon = ACTION_ICONS[log.action] ?? Bell
+                return (
+                  <li key={log.id} className="relative flex items-start gap-3.5 pb-4 last:pb-0">
+                    {/* خط اتصال خط زمانی */}
+                    {idx < data.recentActivity.length - 1 ? (
+                      <span className="absolute top-8 start-[15px] bottom-0 w-px bg-border" aria-hidden />
+                    ) : null}
+                    <span className="relative rounded-xl border bg-muted/60 p-1.5 shrink-0 text-muted-foreground">
+                      <ActionIcon className="h-3.5 w-3.5" aria-hidden />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm leading-6">
+                        <span className="font-semibold">{log.userName}</span>
+                        <span className="text-muted-foreground"> — {ACTION_LABELS[log.action] ?? log.action}</span>
+                        {log.entityTitle ? <span className="text-foreground/80"> «{log.entityTitle}»</span> : null}
+                      </p>
+                      {log.details ? <p className="text-xs text-muted-foreground mt-0.5">{log.details}</p> : null}
+                    </div>
+                    <span className="text-[11px] text-muted-foreground shrink-0 pt-1">{timeAgo(log.createdAt)}</span>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </CardContent>

@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Download, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Download, FileText, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -409,6 +409,7 @@ function ArticlesListPage() {
       <PageHeader
         title="مقالات"
         description="مدیریت مقالات، گردش کار انتشار و محتوا"
+        icon={<FileText className="h-5 w-5" />}
         actions={
           <>
             {can('articles.view') ? (

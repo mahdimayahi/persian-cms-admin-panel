@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { FileText, ExternalLink, Loader2, Search, Trash2, Upload } from 'lucide-react'
+import { FileText, ExternalLink, Images, Loader2, Search, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -200,6 +200,7 @@ export function MediaView() {
       <PageHeader
         title="کتابخانه فایل‌ها"
         description="مدیریت تصاویر و اسناد استفاده‌شده در محتوا"
+        icon={<Images className="h-5 w-5" />}
         actions={
           <>
             <Select value={mimeFilter} onValueChange={(v) => { setMimeFilter(v as MimeFilter); setPage(1) }}>
