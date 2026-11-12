@@ -4,6 +4,7 @@ import * as React from 'react'
 import { FolderTree, MoreHorizontal, Palette, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -23,6 +24,7 @@ import {
 import { DataTable, type Column } from '@/components/shared/data-table'
 import { ImpactDialog } from '@/components/shared/impact-dialog'
 import { PageHeader, Field, ErrorState } from '@/components/shared/ui-bits'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/client/api'
 import { toFa, faDate } from '@/lib/client/format'
 import { useCan } from '@/store/app-store'
@@ -33,6 +35,7 @@ type Category = {
   slug: string
   description: string | null
   color: string
+  parentId: string | null
   createdAt: string
   _count: { articles: number }
 }
@@ -48,7 +51,7 @@ export function CategoriesView() {
   // گفت‌وگوی ایجاد/ویرایش
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<Category | null>(null)
-  const [form, setForm] = React.useState({ name: '', description: '', color: '#64748b' })
+  const [form, setForm] = React.useState({ name: '', description: '', color: '#64748b', parentId: '' })
   const [saving, setSaving] = React.useState(false)
   const [formError, setFormError] = React.useState<string | null>(null)
 
@@ -74,16 +77,25 @@ export function CategoriesView() {
 
   const openCreate = () => {
     setEditing(null)
-    setForm({ name: '', description: '', color: '#64748b' })
+    setForm({ name: '', description: '', color: '#64748b', parentId: '' })
     setFormError(null)
     setDialogOpen(true)
   }
 
   const openEdit = (c: Category) => {
     setEditing(c)
-    setForm({ name: c.name, description: c.description ?? '', color: c.color || '#64748b' })
+    setForm({ name: c.name, description: c.description ?? '', color: c.color || '#64748b', parentId: c.parentId ?? '' })
     setFormError(null)
     setDialogOpen(true)
+  }
+
+  /** گزینه‌های دستهٔ والد: همهٔ دسته‌ها به‌جز خودِ دستهٔ در حال ویرایش (فهرست API شامل ادغام‌شده‌ها نیست) */
+  const parentOptions = React.useMemo(() => items.filter((c) => !editing || c.id !== editing.id), [items, editing])
+
+  /** نام والد از روی فهرست بارگذاری‌شده برای نمایش کنار نام ردیف */
+  const parentNameOf = (id: string | null | undefined): string | null => {
+    if (!id) return null
+    return items.find((i) => i.id === id)?.name ?? null
   }
 
   const save = async () => {
@@ -98,6 +110,7 @@ export function CategoriesView() {
         name: form.name.trim(),
         description: form.description.trim() || null,
         color: form.color,
+        parentId: form.parentId || null,
       }
       if (editing) {
         await apiPut(`/api/categories/${editing.id}`, payload)
@@ -135,16 +148,24 @@ export function CategoriesView() {
     {
       key: 'name',
       header: 'نام',
-      render: (c) => (
-        <span className="inline-flex items-center gap-2 font-medium">
-          <span
-            className="h-3 w-3 rounded-full border border-black/10 shrink-0"
-            style={{ background: c.color || '#64748b' }}
-            aria-hidden
-          />
-          {c.name}
-        </span>
-      ),
+      render: (c) => {
+        const parentName = parentNameOf(c.parentId)
+        return (
+          <span className="inline-flex flex-wrap items-center gap-2 font-medium">
+            <span
+              className="h-3 w-3 rounded-full border border-black/10 shrink-0"
+              style={{ background: c.color || '#64748b' }}
+              aria-hidden
+            />
+            {c.name}
+            {parentName ? (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal text-muted-foreground">
+                والد: {parentName}
+              </Badge>
+            ) : null}
+          </span>
+        )
+      },
     },
     {
       key: 'description',
@@ -245,6 +266,28 @@ export function CategoriesView() {
                 placeholder="مثلاً: اخبار فناوری"
                 maxLength={100}
               />
+            </Field>
+            <Field
+              label="دستهٔ والد (اختیاری)"
+              htmlFor="cat-parent"
+              hint="برای ساخت ساختار درختی؛ جلوگیری از چرخه در سمت سرور کنترل می‌شود."
+            >
+              <Select
+                value={form.parentId || 'none'}
+                onValueChange={(v) => setForm((f) => ({ ...f, parentId: v === 'none' ? '' : v }))}
+              >
+                <SelectTrigger id="cat-parent" className="w-full" aria-label="انتخاب دستهٔ والد">
+                  <SelectValue placeholder="بدون والد" />
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  <SelectItem value="none">بدون والد</SelectItem>
+                  {parentOptions.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </Field>
             <Field label="توضیحات" htmlFor="cat-description">
               <Textarea

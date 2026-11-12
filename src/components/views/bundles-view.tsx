@@ -64,8 +64,10 @@ import {
   StatusBadge,
 } from '@/components/shared/ui-bits'
 import { apiDelete, apiGet, apiPost } from '@/lib/client/api'
+import { notifyGuideEvent } from '@/lib/client/guide'
 import { faDate, timeAgo, toFa } from '@/lib/client/format'
 import { useAppStore, useCan } from '@/store/app-store'
+import { ContextHint } from '@/components/shared/context-hint'
 import { cn } from '@/lib/utils'
 
 // ─── کلاینت PATCH (کتابخانهٔ api متد PATCH ندارد — الگوی سایر ویوها) ──
@@ -1492,6 +1494,8 @@ export function BundlesView() {
         const res = await apiPost<PublishActionResponse>(`/api/bundles/${detail.id}`, { action })
         setDetail(res.detail)
         reportExecution(res.execution, action)
+        // راهنما: انتشار کامل و موفق بسته (تلاش مجدد که به انتشار کامل برسد هم شمرده می‌شود)
+        if (res.execution.status === 'PUBLISHED') void notifyGuideEvent('bundle.published')
       } else {
         const res = await apiPost<BundleDetail>(`/api/bundles/${detail.id}`, { action })
         setDetail(res)
@@ -1958,6 +1962,11 @@ export function BundlesView() {
 
                     <div className="space-y-3 rounded-xl border bg-muted/30 p-4">
                       <p className="text-sm font-semibold">اقدام‌های بسته</p>
+                      {detail.readinessState === 'BLOCKED' ? (
+                        <ContextHint tone="warning" title="چرا تأیید بسته غیرفعال است؟">
+                          بررسی آمادگی باید بدون خطا باشد؛ خطاهای قرمز در تب «بررسی‌ها» را برطرف کنید.
+                        </ContextHint>
+                      ) : null}
                       <div className="flex flex-wrap items-center gap-2">
                         {showSendToReview ? (
                           <Button

@@ -52,6 +52,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { StatusBadge, LoadingSpinner, ErrorState, Field, ConfirmDialog } from '@/components/shared/ui-bits'
 import { MediaPickerDialog, mediaUrl } from '@/components/shared/media-picker'
 import { ContentComments } from '@/components/shared/content-comments'
+import { ContextHint } from '@/components/shared/context-hint'
+import { notifyGuideEvent } from '@/lib/client/guide'
 import { MessageSquare, Sparkles, TrendingUp } from 'lucide-react'
 import { apiGet, apiPost, apiPut, ApiError } from '@/lib/client/api'
 import { timeAgo, toFa, faDateTime, faDate } from '@/lib/client/format'
@@ -479,6 +481,8 @@ export function ArticleEditorView() {
           setDirty(false)
           clearAutosave()
           toast.success('تغییرات ذخیره شد')
+          // راهنما: ذخیرهٔ موفق مقالهٔ موجود با تصویر شاخص و دسته‌بندی → تکمیل محتوا
+          if (coverImageId && categoryId) void notifyGuideEvent('article.content_completed')
         } else {
           const created = await apiPost<ArticleDetail>('/api/articles', {
             title: title.trim(),
@@ -495,6 +499,10 @@ export function ArticleEditorView() {
           clearAutosave()
           setDirty(false)
           toast.success('مقاله ایجاد شد')
+          // راهنما: اولین ذخیرهٔ موفق مقالهٔ جدید؛ اگر تصویر شاخص و دسته‌بندی هم ثبت شده باشد
+          // همان ذخیره گام «تکمیل محتوا» را نیز تکمیل می‌کند (سرور ایدمپوتنت و مجوزسنجی‌شده است)
+          void notifyGuideEvent('article.first_draft_saved')
+          if (coverImageId && categoryId) void notifyGuideEvent('article.content_completed')
           applyArticle(created)
           setRestoreDraft(null)
           navigate(`/articles/${created.id}/edit`)
@@ -558,6 +566,16 @@ export function ArticleEditorView() {
       setRejectOpen(false)
       setRejectNote('')
       toast.success(`«${TRANSITION_LABELS[action]}» با موفقیت انجام شد.`)
+      // راهنما: رویدادهای گردش کار فقط پس از موفقیت واقعی انتقال ثبت می‌شوند
+      if (action === 'SUBMIT_REVIEW') {
+        void notifyGuideEvent('article.sent_to_review')
+      } else if (action === 'APPROVE') {
+        // تأیید = ثبت نتیجهٔ بازبینی + تأیید نسخه (هر دو گام، ایدمپوتنت)
+        void notifyGuideEvent('article.reviewed')
+        void notifyGuideEvent('article.approved')
+      } else if (action === 'REJECT') {
+        void notifyGuideEvent('article.revision_requested')
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'انجام عملیات ناموفق بود.')
     } finally {
@@ -996,6 +1014,16 @@ export function ArticleEditorView() {
                         مقاله بدون این موارد قابل ارسال است، اما کیفیت انتشار پایین می‌آید.
                       </AlertDescription>
                     </Alert>
+                  ) : null}
+
+                  {/* راهنمای درون‌خطی: چرا انتشار در وضعیت فعلی در دسترس نیست */}
+                  {statusInfo && ['DRAFT', 'NEEDS_REVISION', 'IN_REVIEW'].includes(statusInfo.value) ? (
+                    <ContextHint tone="warning" title="چرا انتشار غیرفعال است؟">
+                      <p>نسخهٔ فعلی هنوز تأیید نشده است؛ می‌توانید آن را برای بررسی ارسال کنید.</p>
+                      {statusInfo.value !== 'DRAFT' && publishBlockers.length > 0 ? (
+                        <p className="mt-1">پیش از انتشار، این موارد را تکمیل کنید: {publishBlockers.join('، ')}.</p>
+                      ) : null}
+                    </ContextHint>
                   ) : null}
 
                   {transitions.length === 0 ? (
@@ -1504,6 +1532,15 @@ export function ArticleEditorView() {
                     aria-label="آدرس کوتاه مقاله"
                   />
                   <p className="text-xs text-muted-foreground mt-1.5">فقط حروف انگلیسی، عدد و خط تیره</p>
+                  <div className="mt-3">
+                    <ContextHint title="دربارهٔ آدرس کوتاه (slug)">
+                      <p>
+                        از حروف لاتین، رقم و خط تیره استفاده کنید؛ مثال:{' '}
+                        <span dir="ltr" className="font-mono">content-marketing-guide</span>.
+                      </p>
+                      <p className="mt-1">تغییر آدرس مقالهٔ منتشرشده پیشنهاد ثبت ریدایرکت می‌دهد.</p>
+                    </ContextHint>
+                  </div>
                 </CardContent>
               </Card>
 

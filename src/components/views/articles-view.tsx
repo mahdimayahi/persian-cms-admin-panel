@@ -48,6 +48,7 @@ import {
 } from '@/components/shared/ui-bits'
 import { ImpactDialog } from '@/components/shared/impact-dialog'
 import { apiGet, apiPost, apiDelete, type PagedResponse } from '@/lib/client/api'
+import { notifyGuideEvent } from '@/lib/client/guide'
 import { toFa, faDate, downloadCsv } from '@/lib/client/format'
 import { useAppStore, useCan } from '@/store/app-store'
 import { ARTICLE_STATUSES, articleStatusInfo, TRANSITION_LABELS, type TransitionAction } from '@/lib/constants'
@@ -346,6 +347,16 @@ function ArticlesListPage() {
     try {
       await apiPost(`/api/articles/${id}/transition`, { action })
       toast.success(`«${TRANSITION_LABELS[action]}» با موفقیت انجام شد.`)
+      // راهنما: رویدادهای گردش کار فقط پس از موفقیت واقعی (سرور ایدمپوتنت و مجوزسنجی‌شده)
+      if (action === 'APPROVE') {
+        // تأیید = ثبت نتیجهٔ بازبینی + تأیید نسخه (هر دو گام)
+        void notifyGuideEvent('article.reviewed')
+        void notifyGuideEvent('article.approved')
+      } else if (action === 'REJECT') {
+        void notifyGuideEvent('article.revision_requested')
+      } else if (action === 'SUBMIT_REVIEW') {
+        void notifyGuideEvent('article.sent_to_review')
+      }
       load()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'انجام عملیات ناموفق بود.')

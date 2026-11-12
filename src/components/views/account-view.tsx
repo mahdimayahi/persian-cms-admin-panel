@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { AlertTriangle, KeyRound, Loader2, LogOut, Monitor, ShieldAlert, UserRound } from 'lucide-react'
+import { AlertTriangle, KeyRound, LifeBuoy, Loader2, LogOut, Monitor, ShieldAlert, UserRound } from 'lucide-react'
 import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -11,7 +11,10 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { EmptyState, ErrorState, Field, LoadingSpinner, PageHeader, StatusBadge } from '@/components/shared/ui-bits'
-import { apiDelete, apiGet, apiPost } from '@/lib/client/api'
+import { OnboardingChecklist } from '@/components/shared/onboarding-checklist'
+import { SupportReportDialog } from '@/components/shared/support-dialog'
+import { ApiError, apiDelete, apiGet, apiPost } from '@/lib/client/api'
+import { supportStatusInfo } from '@/lib/client/support-status'
 import { faDate, faDateTime, timeAgo } from '@/lib/client/format'
 import { userStatusInfo } from '@/lib/constants'
 import { ROLE_LABELS, type Role } from '@/lib/permissions'
@@ -278,6 +281,108 @@ export function AccountView() {
           <Separator />
         </TabsContent>
       </Tabs>
+
+      {/* ─── راهنمای شروع کار (نسخهٔ compact با اجرای دوباره) ────────── */}
+      <div className="mt-6 max-w-2xl">
+        <OnboardingChecklist variant="compact" />
+      </div>
+
+      {/* ─── گزارش‌های من ─────────────────────────────────────────────── */}
+      <SupportTicketsSection />
     </div>
+  )
+}
+
+type SupportMineItem = {
+  id: string
+  code: string
+  subject: string
+  status: string
+  createdAt: string
+  updatedAt: string
+}
+
+/** بخش «گزارش‌های من» — وضعیت آخرین گزارش‌های مشکل کاربر جاری (تا ۲۰ مورد) */
+function SupportTicketsSection() {
+  const [supportTickets, setSupportTickets] = React.useState<SupportMineItem[] | null>(null)
+  const [supportLoading, setSupportLoading] = React.useState(true)
+  const [supportError, setSupportError] = React.useState<string | null>(null)
+  const [supportDialogOpen, setSupportDialogOpen] = React.useState(false)
+
+  const loadSupportTickets = React.useCallback(async () => {
+    setSupportLoading(true)
+    setSupportError(null)
+    try {
+      const res = await apiGet<{ items: SupportMineItem[] }>('/api/support/mine')
+      setSupportTickets(res.items)
+    } catch (e) {
+      // انقضای نشست (۴۰۱) بی‌صدا مدیریت می‌شود — خروج در store انجام می‌شود
+      if (e instanceof ApiError && e.status === 401) {
+        setSupportTickets([])
+        return
+      }
+      setSupportError(e instanceof Error ? e.message : 'خطا در دریافت گزارش‌های شما')
+    } finally {
+      setSupportLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    loadSupportTickets()
+  }, [loadSupportTickets])
+
+  return (
+    <Card className="max-w-2xl mt-6">
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-1.5">
+          <LifeBuoy className="h-4 w-4 text-teal-600" aria-hidden />
+          گزارش‌های من
+        </CardTitle>
+        <CardDescription>وضعیت گزارش‌های مشکل شما؛ کد رهگیری برای پیگیری تلفنی هم قابل استفاده است.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p className="text-xs text-muted-foreground">گزارش‌ها و پیوست‌ها تا ۱۸۰ روز نگهداری می‌شوند.</p>
+        {supportLoading ? (
+          <LoadingSpinner label="در حال بارگذاری گزارش‌های شما…" />
+        ) : supportError ? (
+          <ErrorState message={supportError} onRetry={loadSupportTickets} />
+        ) : (supportTickets ?? []).length === 0 ? (
+          <EmptyState
+            compact
+            title="گزارش ثبت‌شده‌ای ندارید."
+            description="اگر مشکلی در سامانه دیدید، از دکمهٔ «گزارش مشکل» در سربرگ استفاده کنید."
+            action={
+              <Button size="sm" onClick={() => setSupportDialogOpen(true)}>
+                ثبت گزارش جدید
+              </Button>
+            }
+          />
+        ) : (
+          <ul className="divide-y max-h-64 overflow-y-auto mt-3">
+            {(supportTickets ?? []).map((t) => {
+              const info = supportStatusInfo(t.status)
+              return (
+                <li key={t.id} className="flex flex-wrap items-center gap-2 py-3">
+                  <Badge variant="secondary" className="font-mono" dir="ltr">
+                    {t.code}
+                  </Badge>
+                  <StatusBadge label={info.label} colorClass={info.colorClass} bgClass={info.bgClass} />
+                  <p className="text-sm font-medium line-clamp-1 min-w-0 flex-1" title={t.subject}>
+                    {t.subject}
+                  </p>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">{timeAgo(t.createdAt)}</span>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </CardContent>
+
+      <SupportReportDialog
+        open={supportDialogOpen}
+        onOpenChange={setSupportDialogOpen}
+        onSuccess={loadSupportTickets}
+      />
+    </Card>
   )
 }

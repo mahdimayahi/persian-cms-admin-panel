@@ -41,20 +41,73 @@ model Session {
 // ─── محتوا ────────────────────────────────────────────────────────
 
 model Category {
-  id          String    @id @default(cuid())
-  name        String
-  slug        String    @unique
-  description String?
-  color       String    @default("#64748b")
-  articles    Article[]
-  createdAt   DateTime  @default(now())
+  id           String     @id @default(cuid())
+  name         String
+  slug         String     @unique
+  description  String?
+  color        String     @default("#64748b")
+  // درخت دسته‌بندی (گام ۳ مرحله ۳) — والد اختیاری با جلوگیری از چرخه در لایهٔ سرویس
+  parentId     String?
+  parent       Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children     Category[] @relation("CategoryTree")
+  articles     Article[]
+  // وضعیت «ادغام‌شده» — رکورد قدیمی حذف فیزیکی نمی‌شود؛ مقصد و مسئول ثبت می‌گردد
+  mergedIntoId String?
+  mergedAt     DateTime?
+  mergedByName String?
+  createdAt    DateTime   @default(now())
+
+  @@index([parentId])
+  @@index([mergedIntoId])
 }
 
 model Tag {
-  id       String       @id @default(cuid())
-  name     String       @unique
-  slug     String       @unique
-  articles ArticleTag[]
+  id           String       @id @default(cuid())
+  name         String       @unique
+  slug         String       @unique
+  articles     ArticleTag[]
+  // وضعیت «ادغام‌شده» — رکورد از انتخاب‌های جدید کنار می‌رود اما سابقه نگه داشته می‌شود
+  mergedIntoId String?
+  mergedAt     DateTime?
+  mergedByName String?
+
+  @@index([mergedIntoId])
+}
+
+// گزارش ادغام‌های انجام‌شده — چه کسی، چه رکوردهایی و با چه انتخاب‌هایی
+model DataMergeLog {
+  id              String   @id @default(cuid())
+  entityType      String // TAG | CATEGORY
+  sourceId        String // رکورد ادغام‌شونده (قدیمی)
+  sourceName      String
+  targetId        String // رکورد مقصد (باقی‌مانده)
+  targetName      String
+  relationCount   Int      @default(0)
+  fieldChoices    String   @default("{}") // JSON — مقدار نهایی انتخابی فیلدها
+  notes           String?
+  performedById   String
+  performedByName String
+  createdAt       DateTime @default(now())
+
+  @@index([entityType, targetId])
+  @@index([entityType, sourceId])
+}
+
+// جفت‌هایی که کاربر «تکراری نیستند» اعلام کرده — بدون تغییر معنادار دوباره پیشنهاد نمی‌شوند
+model DuplicateDismissal {
+  id              String   @id @default(cuid())
+  entityType      String // TAG | CATEGORY
+  idA             String
+  idB             String
+  nameA           String
+  nameB           String
+  reason          String?
+  dismissedById   String
+  dismissedByName String
+  createdAt       DateTime @default(now())
+
+  @@unique([entityType, idA, idB])
+  @@index([entityType])
 }
 
 model Article {
@@ -497,21 +550,46 @@ model GlossaryException {
 }
 
 // پشتیبانی تشخیصی — گزارش مشکل با شناسه قابل‌ردگیری
+// status: NEW | IN_PROGRESS | NEED_INFO | RESOLVED | CLOSED
+// نگهداری گزارش‌ها و پیوست‌ها ۱۸۰ روز (سیاست نگهداری در کد مسیر ثبت شده است)
 model SupportTicket {
   id             String    @id @default(cuid())
   code           String    @unique
+  userId         String? // کاربر گزارش‌دهنده (برای «گزارش‌های من» و تفکیک دسترسی)
   userName       String
   userEmail      String
-  page           String    @default("")
+  subject        String    @default("")
+  expectation    String    @default("") // انتظار کاربر
+  actual         String    @default("") // اتفاق واقعی
+  page           String    @default("") // مسیر پاک‌سازی‌شده (بدون پارامتر)
+  section        String    @default("") // بخش مرتبط سامانه
   steps          String    @default("")
-  errorInfo      String    @default("")
+  errorInfo      String    @default("") // کد/پیام خطا (پالایش‌شده)
+  operationId    String? // اتصال به مرکز عملیات
+  diagnostics    String    @default("{}") // JSON اطلاعاتتشخیصی مجاز
+  screenshot     String? // تصویر اختیاری (data URL؛ پوشاندن حساس در خروجی اعمال شده)
+  screenshotMime String?
   userAgent      String    @default("")
-  status         String    @default("OPEN") // OPEN | IN_PROGRESS | RESOLVED
+  status         String    @default("NEW")
+  note           String? // یادداشت پشتیبان
   createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
   resolvedAt     DateTime?
   resolvedByName String?
 
   @@index([status])
+  @@index([userId])
+}
+
+// پیشرفت راهنمای نقش‌محور هر کاربر — تکمیل فقط با رویداد موفق واقعی
+model GuideProgress {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  stepsDone   String    @default("[]") // JSON آرایه شناسه گام‌های تکمیل‌شده
+  dismissedAt DateTime?
+  version     String    @default("1") // نسخهٔ محتوای راهنما
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 // موارد نادیده‌گرفته‌شده در مرکز سلامت محتوا (با دلیل)

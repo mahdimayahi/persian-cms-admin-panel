@@ -21,6 +21,7 @@ export async function GET() {
   try {
     await requireAuth()
     const categories = await db.category.findMany({
+      where: { mergedIntoId: null }, // حذف رکوردهای ادغام‌شده از فهرست انتخاب
       orderBy: { name: 'asc' },
       include: { _count: { select: { articles: true } } },
     })
@@ -44,6 +45,7 @@ interface CategoryBody {
   name?: unknown
   description?: unknown
   color?: unknown
+  parentId?: unknown
 }
 
 export async function POST(req: NextRequest) {
@@ -73,8 +75,23 @@ export async function POST(req: NextRequest) {
       body.description === undefined || body.description === null ? null : vString(body.description, 'توضیح', { max: 500 })
     const color = validateColor(body.color)
 
+    // والد اختیاری (ساختار درختی) — اعتبارسنجی وجود و وضعیت ادغام؛ ایجاد رکورد جدید خودش نیست → گارد خود نیازی ندارد
+    let parentId: string | null = null
+    if (body.parentId !== undefined && body.parentId !== null && body.parentId !== '') {
+      if (typeof body.parentId !== 'string') {
+        throw new ApiError(400, '«دسته‌بندی والد» نامعتبر است.')
+      }
+      const pid = body.parentId.trim()
+      if (pid !== '') {
+        const parent = await db.category.findUnique({ where: { id: pid }, select: { id: true, mergedIntoId: true } })
+        if (!parent) throw new ApiError(400, 'دستهٔ والد یافت نشد.')
+        if (parent.mergedIntoId !== null) throw new ApiError(409, 'این دسته‌بندی ادغام شده است.')
+        parentId = pid
+      }
+    }
+
     const category = await db.category.create({
-      data: { name, slug, description, ...(color ? { color } : {}) },
+      data: { name, slug, description, parentId, ...(color ? { color } : {}) },
     })
 
     await logActivity({

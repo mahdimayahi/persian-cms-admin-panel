@@ -13,6 +13,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { ErrorState, Field, LoadingSpinner, PageHeader } from '@/components/shared/ui-bits'
 import { apiGet, apiPut } from '@/lib/client/api'
+import { notifyGuideEvent } from '@/lib/client/guide'
 import { useCan } from '@/store/app-store'
 
 type SettingsForm = {
@@ -116,6 +117,8 @@ export function SettingsView() {
       setLoaded(f)
       setForm(f)
       toast.success('تنظیمات ذخیره شد.')
+      // راهنما: ذخیرهٔ موفق تنظیمات سایت
+      void notifyGuideEvent('settings.saved')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'خطا در ذخیره تنظیمات')
     } finally {

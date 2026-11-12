@@ -21,6 +21,7 @@ export async function GET() {
   try {
     await requireAuth()
     const tags = await db.tag.findMany({
+      where: { mergedIntoId: null }, // حذف رکوردهای ادغام‌شده از فهرست انتخاب
       orderBy: { name: 'asc' },
       include: { _count: { select: { articles: true } } },
     })

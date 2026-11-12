@@ -35,6 +35,7 @@ import {
   StatusBadge,
 } from '@/components/shared/ui-bits'
 import { ApiError, apiDelete, apiGet, apiPost, apiPut, type PagedResponse } from '@/lib/client/api'
+import { notifyGuideEvent } from '@/lib/client/guide'
 import { faDate, timeAgo, toFa } from '@/lib/client/format'
 import { USER_STATUSES, userStatusInfo } from '@/lib/constants'
 import { ROLES, ROLE_LABELS, type Role } from '@/lib/permissions'
@@ -132,6 +133,8 @@ export function UsersView() {
         role: createForm.role,
       })
       toast.success('دعوت‌نامه ایجاد شد — کاربر با اولین ورود فعال می‌شود.')
+      // راهنما: ساخت موفق اولین حساب همکار
+      void notifyGuideEvent('user.created')
       setCreateOpen(false)
       load()
     } catch (err) {
@@ -168,6 +171,9 @@ export function UsersView() {
       if (editForm.password) payload.password = editForm.password
       await apiPut(`/api/users/${editTarget.id}`, payload)
       toast.success('اطلاعات کاربر ذخیره شد.')
+      // راهنما: تغییر نقش یک کاربر = به‌روزرسانی مجوزهای مؤثر او. (صفحهٔ نقش‌ها فقط‌خواندنی است؛
+      // تنها جریان واقعی به‌روزرسانی مجوزهای در دسترس، همین تغییر نقش است)
+      if (editForm.role !== editTarget.role) void notifyGuideEvent('roles.updated')
       setEditTarget(null)
       load()
     } catch (err) {

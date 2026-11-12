@@ -1,6 +1,6 @@
 /**
  * API دسته‌بندی مشخص
- * PUT    /api/categories/[id] — ویرایش دسته‌بندی
+ * PUT    /api/categories/[id] — ویرایش دسته‌بندی (شامل parentId اختیاری با اعتبارسنجی ساختار درختی)
  * DELETE /api/categories/[id] — حذف دسته‌بندی؛ اگر مقاله دارد با ۴۰۹ و گزارش اثر مسدود می‌شود
  *        استراتژی‌ها: ?strategy=TRANSFER&targetCategoryId=... (انتقال مقالات) یا ?strategy=DETACH (خروج از دسته)
  */
@@ -28,7 +28,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const category = await db.category.findUnique({ where: { id } })
     if (!category) throw new ApiError(404, 'دسته‌بندی یافت نشد.')
 
-    const body = await parseBody<{ name?: unknown; description?: unknown; color?: unknown }>(req)
+    const body = await parseBody<{ name?: unknown; description?: unknown; color?: unknown; parentId?: unknown }>(req)
     const data: Prisma.CategoryUncheckedUpdateInput = {}
 
     if (body.name !== undefined && body.name !== null) {
@@ -61,6 +61,60 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const color = validateColor(body.color)
     if (color !== undefined) data.color = color
+
+    // والد اختیاری: null/خالی → بدون والد؛ در غیر این صورت اعتبارسنجی ساختار درختی
+    if (body.parentId !== undefined) {
+      if (body.parentId === null || body.parentId === '') {
+        data.parentId = null
+      } else if (typeof body.parentId !== 'string') {
+        throw new ApiError(400, '«دسته‌بندی والد» نامعتبر است.')
+      } else {
+        const parentId = body.parentId.trim()
+        if (parentId === '') {
+          data.parentId = null
+        } else if (parentId === id) {
+          throw new ApiError(400, 'والد نمی‌تواند خودِ این دسته‌بندی باشد.')
+        } else {
+          const parent = await db.category.findUnique({
+            where: { id: parentId },
+            select: { id: true, mergedIntoId: true },
+          })
+          if (!parent) throw new ApiError(400, 'دسته‌بندی والد یافت نشد.')
+          if (parent.mergedIntoId !== null) {
+            throw new ApiError(409, 'این دسته‌بندی ادغام شده است.') // حذف رکوردهای ادغام‌شده از فهرست انتخاب
+          }
+
+          // والد جدید نباید در زیرشاخهٔ خودِ این دسته باشد (پیشگیری از چرخه — حداکثر ۵۰ سطح)
+          const all = await db.category.findMany({ select: { id: true, parentId: true } })
+          const childrenOf = new Map<string, string[]>()
+          for (const c of all) {
+            if (!c.parentId) continue
+            const list = childrenOf.get(c.parentId)
+            if (list) list.push(c.id)
+            else childrenOf.set(c.parentId, [c.id])
+          }
+          let frontier = [id]
+          let isDescendant = false
+          for (let depth = 0; depth < 50 && frontier.length > 0 && !isDescendant; depth++) {
+            const next: string[] = []
+            for (const cur of frontier) {
+              for (const child of childrenOf.get(cur) ?? []) {
+                if (child === parentId) {
+                  isDescendant = true
+                  break
+                }
+                next.push(child)
+              }
+              if (isDescendant) break
+            }
+            frontier = next
+          }
+          if (isDescendant) throw new ApiError(409, 'والد انتخابی در زیرشاخهٔ این دسته‌بندی است.')
+
+          data.parentId = parentId
+        }
+      }
+    }
 
     const updated = await db.category.update({
       where: { id },
