@@ -16,6 +16,7 @@ import {
   articleStatusInfo,
   type TransitionAction,
 } from '@/lib/constants'
+import { findPlaceholders, PLACEHOLDER_FIELD_LABELS } from '@/lib/template-placeholders'
 
 /** نقشه انتقال‌های مجاز وضعیت */
 const TRANSITIONS: Record<TransitionAction, { from: string[]; to: string }> = {
@@ -82,6 +83,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           throw new ApiError(403, 'فقط نویسنده مقاله یا بازبین می‌تواند آن را به پیش‌نویس بازگرداند.')
         }
         break
+      }
+    }
+
+    // ── انتشار: مسدودسازی به دلیل جای‌نگهدارهای تکمیل‌نشده ──────────
+    // محتوای ساخته‌شده از الگو تا جایگزینی متن‌های نمونه/راهنما اجازه انتشار ندارد
+    if (action === 'PUBLISH') {
+      const findings = findPlaceholders({
+        TITLE: article.title,
+        EXCERPT: article.excerpt,
+        CONTENT: article.content,
+        SEO_TITLE: article.seoTitle ?? '',
+        SEO_DESCRIPTION: article.seoDescription ?? '',
+      })
+      if (findings.length > 0) {
+        throw new ApiError(
+          409,
+          'انتشار به دلیل وجود جای‌نگهدار تکمیل‌نشده مسدود شد. ابتدا متن‌های نمونه را جایگزین کنید.',
+          {
+            placeholders: findings.map((f) => ({
+              field: f.field,
+              label: f.label,
+              snippet: f.snippet,
+              fieldLabel: PLACEHOLDER_FIELD_LABELS[f.field],
+            })),
+          }
+        )
       }
     }
 

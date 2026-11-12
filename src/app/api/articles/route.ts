@@ -37,6 +37,8 @@ const articleListSelect = {
   publishedAt: true,
   views: true,
   reviewNote: true,
+  sourceTemplateName: true, // الگوی مبدأ محتوا (برای نمایش نشان در فهرست)
+  sourceTemplateVersion: true, // نسخه الگو در لحظه ساخت
   createdAt: true,
   updatedAt: true,
   author: { select: { id: true, name: true } },

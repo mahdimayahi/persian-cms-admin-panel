@@ -1,20 +1,23 @@
 /**
- * بسته‌های انتشار (کمپین)
- * GET  /api/bundles — فهرست بسته‌ها (ابتدا بسته‌های زمان‌بندی‌شده رسیده اجرا می‌شوند)
- * POST /api/bundles — ایجاد بسته جدید { title, note?, articleIds[] }
+ * بسته‌های انتشار (بسته انتشار — کمپین)
+ * GET  /api/bundles — فهرست بسته‌ها (ابتدا بسته‌های زمان‌بندی‌شدهٔ رسیده به‌صورت تنبل اجرا می‌شوند)
+ * POST /api/bundles — ایجاد بسته جدید { title, note?, items: [{ articleId, versionId?: 'current'|id, label? }] }
+ *
+ * هر قلم هنگام ایجاد به یک نسخه مشخص متصل می‌شود؛ اگر نسخه‌ای انتخاب نشده باشد یا مقاله
+ * نسخه‌ای نداشته باشد، اسنپ‌شات خودکار از وضعیت زندهٔ مقاله ثبت و متصل می‌گردد.
  */
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { ApiError, ok, handleApiError, requirePermission, parseBody, vString } from '@/lib/api-utils'
 import { logActivity } from '@/lib/audit'
-import { roleHasPermission } from '@/lib/permissions'
-import { runDueScheduledBundles } from '@/lib/bundle-runner'
+import { runDueScheduledBundles, resolveItemVersion } from '@/lib/bundle-runner'
+import { runBundleReadiness } from '@/lib/bundle-readiness'
 
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   try {
-    const user = await requirePermission('articles.view')
+    await requirePermission('articles.view')
 
-    // اجرای تنبل بسته‌های زمان‌بندی‌شده‌ای که موعدشان رسیده است
+    // اجرای تنبل بسته‌های زمان‌بندی‌شده‌ای که موعدشان رسیده است (با گارد نسخه)
     let executed = 0
     try {
       executed = await runDueScheduledBundles()
@@ -24,11 +27,7 @@ export async function GET(req: NextRequest) {
 
     const bundles = await db.publishBundle.findMany({
       orderBy: { createdAt: 'desc' },
-      include: {
-        items: {
-          include: { article: { select: { id: true, title: true, status: true } } },
-        },
-      },
+      include: { items: { select: { id: true, result: true, articleId: true } } },
     })
 
     return ok({
@@ -37,19 +36,19 @@ export async function GET(req: NextRequest) {
         title: b.title,
         note: b.note,
         status: b.status,
+        ownerId: b.ownerId,
+        ownerName: b.ownerName,
         scheduledAt: b.scheduledAt,
+        timezone: b.timezone,
         publishedAt: b.publishedAt,
+        approvedAt: b.approvedAt,
+        approvedByName: b.approvedByName,
+        readinessState: b.readinessState,
+        itemsTotal: b.items.length,
+        itemsPublished: b.items.filter((it) => it.result === 'SUCCESS').length,
+        itemsFailed: b.items.filter((it) => it.result === 'FAILED').length,
         createdByName: b.createdByName,
         createdAt: b.createdAt,
-        items: b.items.map((it) => ({
-          id: it.id,
-          articleId: it.articleId,
-          title: it.article.title,
-          status: it.article.status,
-          snapshotStatus: it.snapshotStatus,
-          result: it.result,
-          message: it.message,
-        })),
       })),
       executedDue: executed,
     })
@@ -58,10 +57,17 @@ export async function GET(req: NextRequest) {
   }
 }
 
+interface CreateItemInput {
+  articleId?: unknown
+  versionId?: unknown
+  label?: unknown
+}
+
 interface CreateBundleBody {
   title?: unknown
   note?: unknown
-  articleIds?: unknown
+  items?: unknown
+  articleIds?: unknown // سازگاری با شکل قدیمی: آرایهٔ شناسه مقاله (اتصال به نسخهٔ فعلی)
 }
 
 export async function POST(req: NextRequest) {
@@ -72,18 +78,52 @@ export async function POST(req: NextRequest) {
     const title = vString(body.title, 'عنوان بسته', { required: true, min: 3, max: 150 })
     const note = body.note ? vString(body.note, 'توضیح', { max: 500 }) : ''
 
-    if (!Array.isArray(body.articleIds) || body.articleIds.length === 0) {
+    // ورودی اقلام: آرایهٔ ساختاریافته یا آرایهٔ قدیمی شناسه مقاله‌ها
+    let itemInputs: CreateItemInput[] = []
+    if (Array.isArray(body.items)) {
+      itemInputs = body.items.filter((it): it is CreateItemInput => !!it && typeof it === 'object')
+    } else if (Array.isArray(body.articleIds)) {
+      itemInputs = body.articleIds
+        .filter((a): a is string => typeof a === 'string' && a.trim() !== '')
+        .map((articleId) => ({ articleId }))
+    }
+    if (itemInputs.length === 0) {
       throw new ApiError(400, 'حداقل یک مقاله به بسته اضافه کنید.')
     }
-    const ids = Array.from(new Set(body.articleIds.filter((a): a is string => typeof a === 'string' && a.trim() !== '')))
-    if (ids.length === 0) throw new ApiError(400, 'فهرست مقالات نامعتبر است.')
+
+    // حذف تکراری‌ها بر اساس شناسه مقاله (محدودیت یکتایی bundleId+articleId)
+    const seen = new Set<string>()
+    itemInputs = itemInputs.filter((it) => {
+      const id = typeof it.articleId === 'string' ? it.articleId.trim() : ''
+      if (!id || seen.has(id)) return false
+      seen.add(id)
+      it.articleId = id
+      return true
+    })
+    if (itemInputs.length === 0) throw new ApiError(400, 'فهرست مقالات نامعتبر است.')
 
     const articles = await db.article.findMany({
-      where: { id: { in: ids } },
-      select: { id: true, title: true, status: true },
+      where: { id: { in: Array.from(seen) } },
+      select: { id: true, title: true, slug: true, status: true, content: true, excerpt: true },
     })
-    if (articles.length !== ids.length) {
+    if (articles.length !== seen.size) {
       throw new ApiError(400, 'یکی از مقالات انتخاب‌شده یافت نشد.')
+    }
+    const articleMap = new Map(articles.map((a) => [a.id, a]))
+
+    // اتصال نسخهٔ هر قلم (در صورت نیاز اسنپ‌شات خودکار ثبت می‌شود)
+    const itemData: { articleId: string; versionId: string; versionNumber: number; label: string; snapshotStatus: string }[] = []
+    for (const it of itemInputs) {
+      const article = articleMap.get(String(it.articleId))!
+      const label = it.label ? vString(it.label, 'نقش قلم', { max: 120 }) : ''
+      const bound = await resolveItemVersion(article, it.versionId ?? 'current', user)
+      itemData.push({
+        articleId: article.id,
+        versionId: bound.versionId,
+        versionNumber: bound.versionNumber,
+        label,
+        snapshotStatus: article.status,
+      })
     }
 
     const bundle = await db.publishBundle.create({
@@ -92,11 +132,19 @@ export async function POST(req: NextRequest) {
         note,
         createdById: user.id,
         createdByName: user.name,
-        items: {
-          create: articles.map((a) => ({ articleId: a.id, snapshotStatus: a.status })),
-        },
+        items: { create: itemData },
       },
-      include: { items: { include: { article: { select: { id: true, title: true, status: true } } } } },
+      select: { id: true, title: true, status: true },
+    })
+
+    await db.bundleHistory.create({
+      data: {
+        bundleId: bundle.id,
+        kind: 'CREATED',
+        message: `بسته با ${itemData.length} قلم ایجاد شد و هر قلم به نسخه مشخصی متصل شد.`,
+        userId: user.id,
+        userName: user.name,
+      },
     })
 
     await logActivity({
@@ -106,60 +154,17 @@ export async function POST(req: NextRequest) {
       entityType: 'PUBLISH_BUNDLE',
       entityId: bundle.id,
       entityTitle: title,
-      details: `بسته انتشار با ${articles.length} جزء ایجاد شد`,
+      details: `بسته انتشار با ${itemData.length} جزء ایجاد شد`,
     })
 
-    return ok(
-      {
-        ...bundle,
-        items: bundle.items.map((it) => ({
-          id: it.id,
-          articleId: it.articleId,
-          title: it.article.title,
-          status: it.article.status,
-          snapshotStatus: it.snapshotStatus,
-          result: it.result,
-          message: it.message,
-        })),
-      },
-      { status: 201 }
-    )
-  } catch (err) {
-    return handleApiError(err)
-  }
-}
-
-export async function DELETE(req: NextRequest) {
-  try {
-    const user = await requirePermission('articles.view')
-    const { searchParams } = new URL(req.url)
-    const id = searchParams.get('id') ?? ''
-    if (!id) throw new ApiError(400, 'شناسه بسته الزامی است.')
-
-    const bundle = await db.publishBundle.findUnique({ where: { id } })
-    if (!bundle) throw new ApiError(404, 'بسته یافت نشد.')
-
-    // فقط سازنده یا مدیر انتشار می‌تواند حذف کند
-    if (bundle.createdById !== user.id && !roleHasPermission(user.role, 'articles.publish')) {
-      throw new ApiError(403, 'فقط سازنده بسته یا مدیر انتشار می‌تواند آن را حذف کند.')
-    }
-    if (bundle.status === 'PUBLISHING') {
-      throw new ApiError(409, 'بسته در حال انتشار است و قابل حذف نیست.')
+    // بررسی اولیهٔ آمادگی برای نمایش وضعیت (غیرمسدودکننده)
+    try {
+      await runBundleReadiness(bundle.id, user)
+    } catch (e) {
+      console.error('[bundles] initial readiness failed', e)
     }
 
-    await db.publishBundle.delete({ where: { id } })
-
-    await logActivity({
-      userId: user.id,
-      userName: user.name,
-      action: 'DELETE',
-      entityType: 'PUBLISH_BUNDLE',
-      entityId: id,
-      entityTitle: bundle.title,
-      details: 'حذف بسته انتشار',
-    })
-
-    return ok({ ok: true })
+    return ok(bundle, { status: 201 })
   } catch (err) {
     return handleApiError(err)
   }

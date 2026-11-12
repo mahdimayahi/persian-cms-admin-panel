@@ -197,6 +197,8 @@ export function checkFieldsWithRules(
   }
 
   const exceptionKeys = new Set(exceptions.map((e) => `${e.termId}::${e.field}`))
+  // جلوگیری از یافته‌های تکراری: وقتی چند شکل (term/forms) به یک بازهٔ واحد در یک فیلد می‌رسند
+  const seen = new Set<string>()
 
   for (const rule of activeRules) {
     // شکل‌های قابل تشخیص: term + forms
@@ -222,21 +224,25 @@ export function checkFieldsWithRules(
           const before = origStart > 0 ? nf.text[origStart - 1] : undefined
           const after = origEndInclusive + 1 < nf.text.length ? nf.text[origEndInclusive + 1] : undefined
           if (!isWordChar(before) && !isWordChar(after) && !overlaps(nf.zones, origStart, origEndInclusive + 1)) {
-            findings.push({
-              ruleId: rule.id,
-              ruleType: rule.type,
-              ruleTerm: rule.term,
-              severity: toSeverity(rule.severity),
-              field,
-              observed: nf.text.slice(origStart, origEndInclusive + 1),
-              preferred: rule.preferred,
-              suggestion: rule.preferred || rule.explanation,
-              reason: rule.explanation || rule.example || 'این عبارت با واژه‌نامه برند هماهنگ نیست.',
-              example: rule.example,
-              index: origStart,
-              length: origEndInclusive + 1 - origStart,
-              snippet: buildSnippet(nf.text, origStart, origEndInclusive + 1),
-            })
+            const dedupeKey = `${rule.id}:${field}:${origStart}:${origEndInclusive + 1}`
+            if (!seen.has(dedupeKey)) {
+              seen.add(dedupeKey)
+              findings.push({
+                ruleId: rule.id,
+                ruleType: rule.type,
+                ruleTerm: rule.term,
+                severity: toSeverity(rule.severity),
+                field,
+                observed: nf.text.slice(origStart, origEndInclusive + 1),
+                preferred: rule.preferred,
+                suggestion: rule.preferred || rule.explanation,
+                reason: rule.explanation || rule.example || 'این عبارت با واژه‌نامه برند هماهنگ نیست.',
+                example: rule.example,
+                index: origStart,
+                length: origEndInclusive + 1 - origStart,
+                snippet: buildSnippet(nf.text, origStart, origEndInclusive + 1),
+              })
+            }
           }
           idx = nf.norm.norm.indexOf(needle, normEnd)
         }

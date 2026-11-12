@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Bold,
+  ChevronDown,
   Code,
   Eye,
   Heading2,
@@ -34,7 +35,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,6 +57,13 @@ import { apiGet, apiPost, apiPut, ApiError } from '@/lib/client/api'
 import { timeAgo, toFa, faDateTime, faDate } from '@/lib/client/format'
 import { useAppStore, useCan } from '@/store/app-store'
 import { articleStatusInfo, TRANSITION_LABELS, type TransitionAction } from '@/lib/constants'
+import {
+  GLOSSARY_FIELD_LABELS,
+  applyFixToText,
+  severityLabel,
+  type GlossaryFieldType,
+  type GlossaryFinding,
+} from '@/lib/glossary-check'
 import { navigate, useHashRoute } from '@/hooks/use-hash-route'
 
 type TagLite = { id: string; name: string; slug: string }
@@ -122,6 +130,13 @@ function editorTransitions(status: string, isOwn: boolean, can: (p: string) => b
   return list
 }
 
+/** کلاس نشان شدت یافته‌های واژه‌نامه (الزام‌آور سرخ، هشدار کهربایی، پیشنهاد خاکستری) */
+const GLOSSARY_SEVERITY_BADGE: Record<string, string> = {
+  ENFORCING: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border-0',
+  WARNING: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-0',
+  SUGGESTION: 'bg-muted text-muted-foreground border-0',
+}
+
 /** ابزارهای درج مارک‌داون در نوار ابزار */
 const MD_TOOLS: { icon: React.ElementType; label: string; before: string; after: string }[] = [
   { icon: Heading2, label: 'تیتر', before: '## ', after: '' },
@@ -162,10 +177,18 @@ export function ArticleEditorView() {
   const [seoDescription, setSeoDescription] = React.useState('')
   const [noindex, setNoindex] = React.useState(false)
 
-  // واژه‌نامه و کنترل هویت برند (هشدار غیرمسدودکننده)
-  const [glossaryTerms, setGlossaryTerms] = React.useState<
-    { id: string; term: string; replacement: string; type: 'PREFERRED' | 'FORBIDDEN' | 'REVIEW'; note: string }[]
-  >([])
+  // واژه‌نامه برند: بررسی سمت سرور (اصلاح فقط با اقدام صریح کاربر انجام می‌شود)
+  const [glossaryChecking, setGlossaryChecking] = React.useState(false)
+  const [glossaryFindings, setGlossaryFindings] = React.useState<GlossaryFinding[]>([])
+  const [glossaryIgnoredCount, setGlossaryIgnoredCount] = React.useState(0)
+  const [glossaryStamp, setGlossaryStamp] = React.useState<{ termsCount: number; lastUpdatedAt: string | null } | null>(null)
+  const [glossaryCheckedAt, setGlossaryCheckedAt] = React.useState<number | null>(null)
+  const [glossaryOpen, setGlossaryOpen] = React.useState(true)
+  const [glossaryError, setGlossaryError] = React.useState<string | null>(null)
+  // ثبت استثنا با دلیل الزامی
+  const [ignoreTarget, setIgnoreTarget] = React.useState<GlossaryFinding | null>(null)
+  const [ignoreReason, setIgnoreReason] = React.useState('')
+  const [ignoring, setIgnoring] = React.useState(false)
 
   // مالکیت و بازبینی محتوا
   const [assignableUsers, setAssignableUsers] = React.useState<{ id: string; name: string; roleLabel: string }[]>([])
@@ -374,13 +397,6 @@ export function ArticleEditorView() {
       })
     apiGet<{ items: { id: string; name: string; roleLabel: string }[] }>('/api/users/assignable')
       .then((res) => setAssignableUsers(res.items))
-      .catch(() => {
-        /* اختیاری */
-      })
-    apiGet<{ items: { id: string; term: string; replacement: string; type: 'PREFERRED' | 'FORBIDDEN' | 'REVIEW'; note: string }[] }>(
-      '/api/glossary'
-    )
-      .then((res) => setGlossaryTerms(res.items))
       .catch(() => {
         /* اختیاری */
       })
@@ -652,27 +668,119 @@ export function ArticleEditorView() {
     (t) => !tags.some((s) => s.id === t.id) && t.name.toLowerCase().includes(tagQuery.trim().toLowerCase())
   )
 
-  // ─── واژه‌نامه: تطبیق غیرمسدودکننده روی عنوان و متن ───────────
-  const glossaryMatches = React.useMemo(() => {
-    if (glossaryTerms.length === 0) return []
-    const norm = (v: string) => v.replace(/\u064A/g, 'ی').replace(/\u0643/g, 'ک')
-    const haystack = norm(`${title}\n${content}`)
-    const found: { id: string; term: string; replacement: string; type: 'PREFERRED' | 'FORBIDDEN' | 'REVIEW'; note: string }[] = []
-    for (const g of glossaryTerms) {
-      const t = norm(g.term)
-      if (t && haystack.includes(t)) found.push(g)
-    }
-    return found.slice(0, 8)
-  }, [title, content, glossaryTerms])
+  // ─── واژه‌نامه برند: بررسی سمت سرور با مُهر نسخه قواعد ─────────
+  // نویسنده می‌تواند روی مقاله خودش موردی را با دلیل نادیده بگیرد؛ بیننده نمی‌تواند.
+  const canIgnoreGlossary = can('articles.review') || isOwnArticle
 
-  const replaceInContent = (term: string, replacement: string) => {
-    if (!replacement) return
-    const idx = content.indexOf(term)
-    if (idx < 0) return
-    setContent(content.slice(0, idx) + replacement + content.slice(idx + term.length))
+  const runGlossaryCheck = React.useCallback(
+    async (fieldOverrides?: Partial<Record<GlossaryFieldType, string>>) => {
+      if (!editingId) {
+        toast.error('برای بررسی، ابتدا محتوا را ذخیره کنید.')
+        return
+      }
+      setGlossaryChecking(true)
+      setGlossaryError(null)
+      try {
+        const res = await apiPost<{
+          findings: GlossaryFinding[]
+          ignoredCount: number
+          rulesStamp: { termsCount: number; lastUpdatedAt: string | null }
+        }>('/api/glossary/check', {
+          entityType: 'ARTICLE',
+          entityId: editingId,
+          fields: {
+            TITLE: title,
+            EXCERPT: excerpt,
+            CONTENT: content,
+            SEO_TITLE: seoTitle,
+            SEO_DESCRIPTION: seoDescription,
+            ...fieldOverrides,
+          },
+        })
+        setGlossaryFindings(res.findings)
+        setGlossaryIgnoredCount(res.ignoredCount)
+        setGlossaryStamp(res.rulesStamp)
+        setGlossaryCheckedAt(Date.now())
+        setGlossaryOpen(true)
+      } catch (e) {
+        setGlossaryError(e instanceof Error ? e.message : 'بررسی واژه‌نامه ناموفق بود.')
+      } finally {
+        setGlossaryChecking(false)
+      }
+    },
+    [editingId, title, excerpt, content, seoTitle, seoDescription]
+  )
+
+  /** اعمال اصلاح یک مورد مشخص — فقط با اقدام صریح کاربر و روی مقدار فعلی همان فیلد */
+  const applyGlossaryFix = (finding: GlossaryFinding) => {
+    if (!finding.suggestion) return
+    const current =
+      finding.field === 'TITLE'
+        ? title
+        : finding.field === 'EXCERPT'
+          ? excerpt
+          : finding.field === 'CONTENT'
+            ? content
+            : finding.field === 'SEO_TITLE'
+              ? seoTitle
+              : seoDescription
+    // اگر متن پس از بررسی تغییر کرده باشد، مکان ثبت‌شده دیگر معتبر نیست
+    if (current.slice(finding.index, finding.index + finding.length) !== finding.observed) {
+      toast.error('متن پس از بررسی تغییر کرده است؛ لطفاً بررسی را دوباره اجرا کنید.')
+      return
+    }
+    const next = applyFixToText(current, finding.index, finding.length, finding.suggestion)
+    if (finding.field === 'TITLE') setTitle(next)
+    else if (finding.field === 'EXCERPT') setExcerpt(next)
+    else if (finding.field === 'CONTENT') setContent(next)
+    else if (finding.field === 'SEO_TITLE') setSeoTitle(next)
+    else setSeoDescription(next)
     markDirty()
-    toast.success(`«${term}» با «${replacement}» جایگزین شد.`)
+    toast.success(`«${finding.observed}» با «${finding.suggestion}» جایگزین شد.`)
+    // بررسی مجدد (فقط‌خواندنی) برای به‌روز ماندن مکان و بافت سایر موارد همان فیلد
+    void runGlossaryCheck({ [finding.field]: next } as Partial<Record<GlossaryFieldType, string>>)
   }
+
+  /** ثبت استثنا با دلیل الزامی؛ پس از ثبت، بررسی دوباره اجرا می‌شود */
+  const submitGlossaryIgnore = async () => {
+    if (!ignoreTarget || !editingId) return
+    if (ignoreReason.trim().length < 5) {
+      toast.error('دلیل نادیده گرفتن باید حداقل ۵ نویسه باشد.')
+      return
+    }
+    setIgnoring(true)
+    try {
+      await apiPost('/api/glossary/exceptions', {
+        termId: ignoreTarget.ruleId,
+        entityType: 'ARTICLE',
+        entityId: editingId,
+        field: ignoreTarget.field,
+        reason: ignoreReason.trim(),
+      })
+      toast.success('این مورد با ثبت دلیل نادیده گرفته شد.')
+      setIgnoreTarget(null)
+      setIgnoreReason('')
+      await runGlossaryCheck()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'ثبت استثنا ناموفق بود.')
+    } finally {
+      setIgnoring(false)
+    }
+  }
+
+  // گروه‌بندی یافته‌ها بر اساس شدت برای نمایش مرحله‌ای
+  const glossaryGroups = React.useMemo(() => {
+    const groups: { severity: 'ENFORCING' | 'WARNING' | 'SUGGESTION'; items: GlossaryFinding[] }[] = [
+      { severity: 'ENFORCING', items: [] },
+      { severity: 'WARNING', items: [] },
+      { severity: 'SUGGESTION', items: [] },
+    ]
+    for (const f of glossaryFindings) {
+      const g = groups.find((x) => x.severity === f.severity)
+      if (g) g.items.push(f)
+    }
+    return groups.filter((g) => g.items.length > 0)
+  }, [glossaryFindings])
 
   // ─── بارگذاری اولیه ────────────────────────────────────────────
   if (!isNew && !editingId) return null
@@ -1044,53 +1152,171 @@ export function ArticleEditorView() {
                 </CardContent>
               </Card>
 
-              {/* راهنمای نگارش (واژه‌نامه) — هشدار غیرمسدودکننده */}
-              {!readonly && glossaryMatches.length > 0 ? (
-                <Card className="border-amber-200 dark:border-amber-900">
-                  <CardHeader className="pb-3">
+              {/* بررسی واژه‌نامه برند — نتیجه بررسی سمت سرور؛ اصلاح فقط با اقدام کاربر */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between gap-2">
                     <CardTitle className="text-sm font-semibold flex items-center gap-2">
                       <Sparkles className="h-4 w-4 text-amber-500" aria-hidden />
-                      راهنمای نگارش برند
+                      بررسی واژه‌نامه برند
                     </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <p className="text-xs text-muted-foreground">
-                      این موارد با واژه‌نامه برند مطابقت دارد؛ جایگزینی اختیاری است و مانع ذخیره یا انتشار نمی‌شود.
-                    </p>
-                    {glossaryMatches.map((g) => (
-                      <div key={g.id} className="rounded-xl border p-3 space-y-1.5">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-medium">«{g.term}»</span>
-                          {g.type === 'FORBIDDEN' ? (
-                            <Badge className="bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border-0">عبارت ممنوع</Badge>
-                          ) : g.type === 'REVIEW' ? (
-                            <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-0">نیازمند بررسی</Badge>
-                          ) : (
-                            <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border-0">واژه ترجیحی</Badge>
-                          )}
-                          {g.replacement ? (
-                            <span className="text-xs text-muted-foreground">
-                              پیشنهاد: <span className="font-medium text-foreground">«{g.replacement}»</span>
-                            </span>
+                    {glossaryStamp ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1 text-xs"
+                        onClick={() => setGlossaryOpen((o) => !o)}
+                        aria-expanded={glossaryOpen}
+                      >
+                        {glossaryOpen ? 'بستن نتایج' : 'نمایش نتایج'}
+                        <ChevronDown
+                          className={`h-3.5 w-3.5 transition-transform ${glossaryOpen ? '' : 'rotate-180'}`}
+                          aria-hidden
+                        />
+                      </Button>
+                    ) : null}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      onClick={() => runGlossaryCheck()}
+                      disabled={!editingId || glossaryChecking || saving}
+                    >
+                      {glossaryChecking ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-3.5 w-3.5" />
+                      )}
+                      {glossaryChecking ? 'در حال بررسی…' : glossaryStamp ? 'بررسی مجدد' : 'بررسی واژه‌نامه'}
+                    </Button>
+                    {!editingId ? (
+                      <span className="text-xs text-muted-foreground">برای بررسی، ابتدا محتوا را ذخیره کنید</span>
+                    ) : null}
+                    {glossaryCheckedAt ? (
+                      <span className="text-xs text-muted-foreground">آخرین بررسی: {timeAgo(new Date(glossaryCheckedAt))}</span>
+                    ) : null}
+                  </div>
+
+                  {/* راهنمای شدت‌ها و اصل بازبینی انسانی */}
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span>شدت‌ها:</span>
+                    <Badge className={GLOSSARY_SEVERITY_BADGE.ENFORCING + ' text-[11px]'}>الزام‌آور</Badge>
+                    <Badge className={GLOSSARY_SEVERITY_BADGE.WARNING + ' text-[11px]'}>هشدار</Badge>
+                    <Badge className={GLOSSARY_SEVERITY_BADGE.SUGGESTION + ' text-[11px]'}>پیشنهاد</Badge>
+                  </div>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    اصلاح خودکار سراسری انجام نمی‌شود؛ هر مورد باید بازبینی و تأیید شود.
+                  </p>
+
+                  {glossaryError ? (
+                    <Alert className="border-destructive/40 [&>svg]:text-destructive">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertTitle className="text-sm">بررسی واژه‌نامه ناموفق بود</AlertTitle>
+                      <AlertDescription className="text-xs">{glossaryError}</AlertDescription>
+                    </Alert>
+                  ) : null}
+
+                  {glossaryStamp ? (
+                    glossaryOpen ? (
+                      glossaryFindings.length === 0 ? (
+                        <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+                          <p className="font-medium text-foreground">
+                            موردی در واژه‌نامه یافت نشد؛ محتوا با قواعد فعلی هماهنگ است.
+                          </p>
+                          {glossaryIgnoredCount > 0 ? (
+                            <p>{toFa(glossaryIgnoredCount)} مورد با ثبت دلیل نادیده گرفته شده است.</p>
                           ) : null}
                         </div>
-                        {g.note ? <p className="text-xs text-muted-foreground">{g.note}</p> : null}
-                        {g.replacement ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs"
-                            onClick={() => replaceInContent(g.term, g.replacement)}
-                            disabled={content.indexOf(g.term) < 0}
-                          >
-                            جایگزینی در متن
-                          </Button>
-                        ) : null}
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              ) : null}
+                      ) : (
+                        <div className="space-y-3">
+                          {glossaryGroups.map((group) => (
+                            <div key={group.severity} className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <Badge className={GLOSSARY_SEVERITY_BADGE[group.severity] + ' text-xs'}>
+                                  {severityLabel(group.severity)}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">{toFa(group.items.length)} مورد</span>
+                              </div>
+                              {group.items.map((f, i) => (
+                                <div key={`${f.ruleId}-${f.field}-${f.index}-${i}`} className="rounded-xl border p-3 space-y-2">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Badge variant="secondary" className="text-[11px] font-normal">
+                                      {GLOSSARY_FIELD_LABELS[f.field]}
+                                    </Badge>
+                                    <span className="text-sm font-medium" dir="auto">
+                                      «{f.observed}»
+                                    </span>
+                                    {f.preferred ? (
+                                      <span className="text-xs text-muted-foreground">
+                                        عبارت ترجیحی:{' '}
+                                        <span className="font-medium text-foreground">«{f.preferred}»</span>
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <p className="text-xs leading-5 text-muted-foreground" dir="auto">
+                                    {f.snippet}
+                                  </p>
+                                  {f.reason ? <p className="text-xs leading-5">علت: {f.reason}</p> : null}
+                                  {f.example ? (
+                                    <p className="text-xs leading-5">
+                                      <span className="text-muted-foreground">مثال کاربرد درست: </span>
+                                      <span dir="auto">{f.example}</span>
+                                    </p>
+                                  ) : null}
+                                  {f.suggestion ? (
+                                    <p className="text-xs leading-5">
+                                      پیشنهاد: <span className="font-medium text-foreground">«{f.suggestion}»</span>
+                                    </p>
+                                  ) : null}
+                                  <div className="flex flex-wrap gap-2">
+                                    {f.suggestion && !readonly ? (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 text-xs"
+                                        onClick={() => applyGlossaryFix(f)}
+                                      >
+                                        اعمال اصلاح
+                                      </Button>
+                                    ) : null}
+                                    {canIgnoreGlossary ? (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 text-xs"
+                                        onClick={() => {
+                                          setIgnoreTarget(f)
+                                          setIgnoreReason('')
+                                        }}
+                                      >
+                                        نادیده گرفتن
+                                      </Button>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                          <div className="space-y-1 rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
+                            <p>بررسی با {toFa(glossaryStamp.termsCount)} قاعده فعال انجام شد.</p>
+                            {glossaryIgnoredCount > 0 ? (
+                              <p>{toFa(glossaryIgnoredCount)} مورد با ثبت دلیل نادیده گرفته شده است.</p>
+                            ) : null}
+                          </div>
+                        </div>
+                      )
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        {toFa(glossaryFindings.length)} مورد یافت شده؛ برای مشاهده جزئیات، نتایج را باز کنید.
+                      </p>
+                    )
+                  ) : null}
+                </CardContent>
+              </Card>
 
               {/* دسته‌بندی و برچسب‌ها */}
               <Card>
@@ -1595,6 +1821,38 @@ export function ArticleEditorView() {
         loading={restoring}
         onConfirm={doRestore}
       />
+
+      {/* ثبت دلیل نادیده گرفتن مورد واژه‌نامه — دلیل الزامی و مسئول ثبت می‌شود */}
+      <Dialog open={!!ignoreTarget} onOpenChange={(o) => !o && setIgnoreTarget(null)}>
+        <DialogContent className="max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>نادیده گرفتن مورد واژه‌نامه</DialogTitle>
+            <DialogDescription>
+              {ignoreTarget
+                ? `مورد «${ignoreTarget.observed}» در ${GLOSSARY_FIELD_LABELS[ignoreTarget.field]} فقط برای همین مقاله نادیده گرفته می‌شود؛ هشدار برای سایر مقالات باقی می‌ماند و ثبت دلیل الزامی است.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <Field label="دلیل نادیده گرفتن (الزامی)" htmlFor="glossary-ignore-reason">
+            <Textarea
+              id="glossary-ignore-reason"
+              rows={3}
+              value={ignoreReason}
+              onChange={(e) => setIgnoreReason(e.target.value)}
+              placeholder="مثلاً: این عبارت داخل نقل‌قول تاریخی است و نباید تغییر کند."
+            />
+          </Field>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIgnoreTarget(null)} disabled={ignoring}>
+              انصراف
+            </Button>
+            <Button onClick={submitGlossaryIgnore} disabled={ignoring || ignoreReason.trim().length < 5}>
+              {ignoring ? <Loader2 className="h-4 w-4 animate-spin me-1.5" aria-hidden /> : null}
+              ثبت نادیده گرفتن
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

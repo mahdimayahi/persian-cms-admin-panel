@@ -55,18 +55,27 @@ export function findPlaceholders(
   for (const key of Object.keys(PLACEHOLDER_FIELD_LABELS) as PlaceholderFieldType[]) {
     const text = fields[key] ?? ''
     if (!text) continue
+    // جلوگیری از شمارش دوباره: تطبیق‌های هم‌پوشان (مثل [[...]]) فقط یک‌بار ثبت می‌شوند
+    const taken: { start: number; end: number }[] = []
+    const isTaken = (start: number, end: number) =>
+      taken.some((t) => start < t.end && t.start < end)
     for (const re of PLACEHOLDER_PATTERNS) {
       re.lastIndex = 0
       let m: RegExpExecArray | null
       while ((m = re.exec(text))) {
-        const label = (m[1] ?? m[0]).trim()
-        findings.push({
-          field: key,
-          label,
-          index: m.index,
-          length: m[0].length,
-          snippet: buildSnippet(text, m.index, m.index + m[0].length),
-        })
+        const start = m.index
+        const end = m.index + m[0].length
+        if (!isTaken(start, end)) {
+          const label = (m[1] ?? m[0]).trim()
+          findings.push({
+            field: key,
+            label,
+            index: start,
+            length: end - start,
+            snippet: buildSnippet(text, start, end),
+          })
+          taken.push({ start, end })
+        }
         if (m[0].length === 0) re.lastIndex++
       }
     }
