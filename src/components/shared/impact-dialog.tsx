@@ -6,7 +6,7 @@
  */
 
 import * as React from 'react'
-import { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ExternalLink, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   AlertDialog,
@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { apiGet } from '@/lib/client/api'
 import { toFa } from '@/lib/client/format'
+import { navigate } from '@/hooks/use-hash-route'
 
 export type ImpactType = 'category' | 'tag' | 'media' | 'user'
 
@@ -152,10 +153,26 @@ export function ImpactDialog({
                   {g.items.length > 0 ? (
                     <ul className="mt-2 space-y-1">
                       {g.items.slice(0, 5).map((it) => (
-                        <li key={it.id} className="line-clamp-1 text-xs text-muted-foreground">
-                          • {it.title}
+                        <li key={it.id} className="line-clamp-1 text-xs">
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-1 max-w-full"
+                            onClick={() => {
+                              onClose()
+                              navigate(`#/articles/${it.id}/edit`)
+                            }}
+                            aria-label={`رفتن به «${it.title}»`}
+                          >
+                            <span className="truncate">• {it.title}</span>
+                            <ExternalLink className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
+                          </button>
                         </li>
                       ))}
+                      {g.count > g.items.slice(0, 5).length ? (
+                        <li className="text-[11px] text-muted-foreground pt-0.5">
+                          و {toFa(g.count - g.items.slice(0, 5).length)} مورد دیگر…
+                        </li>
+                      ) : null}
                     </ul>
                   ) : null}
                 </div>

@@ -84,6 +84,7 @@ model Article {
   updatedAt      DateTime       @updatedAt
   versions       ArticleVersion[]
   comments       Comment[]
+  bundleItems    BundleItem[]
 
   @@index([status])
   @@index([authorId])
@@ -258,6 +259,127 @@ model Favorite {
 
   @@unique([userId, itemType, itemId])
   @@index([userId])
+}
+
+// ─── همکاری، کمپین و بهبود کیفیت ────────────────────────────────
+
+// گفتگوهای درون‌محتوایی (کنار رکورد، نه در پیام‌رسان)
+model ContentComment {
+  id             String    @id @default(cuid())
+  entityType     String    // ARTICLE | PAGE
+  entityId       String
+  body           String
+  authorId       String
+  authorName     String
+  mentions       String    @default("[]") // JSON آرایه‌ای از شناسه کاربران منشن‌شده
+  status         String    @default("OPEN") // OPEN | RESOLVED
+  assigneeId     String?
+  assigneeName   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  resolvedAt     DateTime?
+  resolvedByName String?
+
+  @@index([entityType, entityId, status])
+}
+
+// بسته انتشار (کمپین) — مجموعه مقالات که با هم آماده و منتشر می‌شوند
+model PublishBundle {
+  id            String       @id @default(cuid())
+  title         String
+  note          String       @default("")
+  status        String       @default("DRAFT") // DRAFT | SCHEDULED | PUBLISHING | PUBLISHED | PARTIAL | FAILED | CANCELLED
+  scheduledAt   DateTime?
+  publishedAt   DateTime?
+  createdById   String
+  createdByName String
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  items         BundleItem[]
+
+  @@index([status])
+}
+
+model BundleItem {
+  id             String        @id @default(cuid())
+  bundleId       String
+  bundle         PublishBundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  articleId      String
+  article        Article       @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  snapshotStatus String        @default("") // وضعیت مقاله در لحظه افزودن به بسته
+  result         String?       // SUCCESS | FAILED
+  message        String?
+
+  @@unique([bundleId, articleId])
+  @@index([bundleId])
+}
+
+// مرکز عملیات — فهرست عملیات طولانی با نتیجه و امکان تلاش مجدد
+model OperationLog {
+  id            String    @id @default(cuid())
+  type          String // BUNDLE_PUBLISH | MEDIA_UPLOAD | CSV_EXPORT | ...
+  title         String
+  status        String    @default("RUNNING") // RUNNING | SUCCESS | PARTIAL | FAILED
+  totalItems    Int       @default(0)
+  doneItems     Int       @default(0)
+  failedItems   Int       @default(0)
+  initiatorId   String?
+  initiatorName String    @default("سیستم")
+  resultSummary String    @default("")
+  errorsJson    String    @default("[]") // JSON [{ item, reason }]
+  relatedId     String?
+  createdAt     DateTime  @default(now())
+  finishedAt    DateTime?
+
+  @@index([createdAt])
+}
+
+// الگوهای آماده محتوا (ایجاد نسخه مستقل از الگو)
+model ContentTemplate {
+  id              String   @id @default(cuid())
+  name            String
+  description     String   @default("")
+  type            String   @default("ARTICLE") // ARTICLE | LANDING
+  titleTemplate   String   @default("")
+  excerptTemplate String   @default("")
+  contentTemplate String   @default("")
+  tagNames        String   @default("[]") // JSON آرایه نام برچسب‌ها
+  categoryId      String?
+  isSystem        Boolean  @default(false)
+  createdById     String?
+  createdByName   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// واژه‌نامه و کنترل هویت برند (هشدار غیرمسدودکننده در ویرایشگر)
+model GlossaryTerm {
+  id            String   @id @default(cuid())
+  term          String   @unique
+  replacement   String   @default("")
+  type          String   @default("PREFERRED") // PREFERRED | FORBIDDEN | REVIEW
+  note          String   @default("")
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime @default(now())
+}
+
+// پشتیبانی تشخیصی — گزارش مشکل با شناسه قابل‌ردگیری
+model SupportTicket {
+  id             String    @id @default(cuid())
+  code           String    @unique
+  userName       String
+  userEmail      String
+  page           String    @default("")
+  steps          String    @default("")
+  errorInfo      String    @default("")
+  userAgent      String    @default("")
+  status         String    @default("OPEN") // OPEN | IN_PROGRESS | RESOLVED
+  createdAt      DateTime  @default(now())
+  resolvedAt     DateTime?
+  resolvedByName String?
+
+  @@index([status])
 }
 
 // موارد نادیده‌گرفته‌شده در مرکز سلامت محتوا (با دلیل)

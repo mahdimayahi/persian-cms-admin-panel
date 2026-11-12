@@ -49,6 +49,8 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { StatusBadge, LoadingSpinner, ErrorState, Field, ConfirmDialog } from '@/components/shared/ui-bits'
 import { MediaPickerDialog, mediaUrl } from '@/components/shared/media-picker'
+import { ContentComments } from '@/components/shared/content-comments'
+import { MessageSquare, Sparkles, TrendingUp } from 'lucide-react'
 import { apiGet, apiPost, apiPut, ApiError } from '@/lib/client/api'
 import { timeAgo, toFa, faDateTime, faDate } from '@/lib/client/format'
 import { useAppStore, useCan } from '@/store/app-store'
@@ -133,7 +135,7 @@ const MD_TOOLS: { icon: React.ElementType; label: string; before: string; after:
 ]
 
 export function ArticleEditorView() {
-  const { segments } = useHashRoute()
+  const { segments, query } = useHashRoute()
   const user = useAppStore((s) => s.user)
   const can = useCan()
 
@@ -158,6 +160,11 @@ export function ArticleEditorView() {
   const [seoTitle, setSeoTitle] = React.useState('')
   const [seoDescription, setSeoDescription] = React.useState('')
   const [noindex, setNoindex] = React.useState(false)
+
+  // واژه‌نامه و کنترل هویت برند (هشدار غیرمسدودکننده)
+  const [glossaryTerms, setGlossaryTerms] = React.useState<
+    { id: string; term: string; replacement: string; type: 'PREFERRED' | 'FORBIDDEN' | 'REVIEW'; note: string }[]
+  >([])
 
   // مالکیت و بازبینی محتوا
   const [assignableUsers, setAssignableUsers] = React.useState<{ id: string; name: string; roleLabel: string }[]>([])
@@ -297,6 +304,38 @@ export function ArticleEditorView() {
       setOwnerId('')
       setReviewDate('')
       baseUpdatedAtRef.current = null
+
+      // الگوی محتوا: ایجاد نسخه مستقل از الگوی انتخابی
+      const templateId = query.get('template')
+      if (templateId) {
+        apiGet<{ items: { id: string; name: string; titleTemplate: string; excerptTemplate: string; contentTemplate: string; tagNames: string; categoryId: string | null }[] }>(
+          '/api/templates'
+        )
+          .then(async (res) => {
+            const tpl = res.items.find((t) => t.id === templateId)
+            if (!tpl) return
+            setTitle(tpl.titleTemplate)
+            setExcerpt(tpl.excerptTemplate)
+            setContent(tpl.contentTemplate)
+            if (tpl.categoryId) setCategoryId(tpl.categoryId)
+            // برچسب‌ها: فقط موارد موجود در سامانه اتصل می‌شوند (بدون ساخت خودکار)
+            try {
+              const names = (JSON.parse(tpl.tagNames || '[]') as string[]).map((n) => n.toLowerCase())
+              if (names.length > 0) {
+                const allTags = await apiGet<TagRow[]>('/api/tags')
+                const matched = allTags.filter((t) => names.includes(t.name.toLowerCase()))
+                setTags(matched.map((t) => ({ id: t.id, name: t.name, slug: t.slug })))
+              }
+            } catch {
+              /* برچسب اختیاری است */
+            }
+            toast.success(`الگوی «${tpl.name}» اعمال شد؛ بخش‌های کروشه‌ای را تکمیل کنید.`)
+            setDirty(true)
+          })
+          .catch(() => {
+            /* الگو اختیاری است */
+          })
+      }
       setLastSavedAt(null)
       setDirty(false)
       setError(null)
@@ -314,7 +353,7 @@ export function ArticleEditorView() {
         /* داده خراب؛ نادیده گرفته می‌شود */
       }
     }
-  }, [editingId, load])
+  }, [editingId, load, query])
 
   // دسته‌بندی‌ها و برچسب‌ها
   React.useEffect(() => {
@@ -330,6 +369,13 @@ export function ArticleEditorView() {
       })
     apiGet<{ items: { id: string; name: string; roleLabel: string }[] }>('/api/users/assignable')
       .then((res) => setAssignableUsers(res.items))
+      .catch(() => {
+        /* اختیاری */
+      })
+    apiGet<{ items: { id: string; term: string; replacement: string; type: 'PREFERRED' | 'FORBIDDEN' | 'REVIEW'; note: string }[] }>(
+      '/api/glossary'
+    )
+      .then((res) => setGlossaryTerms(res.items))
       .catch(() => {
         /* اختیاری */
       })
@@ -568,6 +614,28 @@ export function ArticleEditorView() {
     (t) => !tags.some((s) => s.id === t.id) && t.name.toLowerCase().includes(tagQuery.trim().toLowerCase())
   )
 
+  // ─── واژه‌نامه: تطبیق غیرمسدودکننده روی عنوان و متن ───────────
+  const glossaryMatches = React.useMemo(() => {
+    if (glossaryTerms.length === 0) return []
+    const norm = (v: string) => v.replace(/\u064A/g, 'ی').replace(/\u0643/g, 'ک')
+    const haystack = norm(`${title}\n${content}`)
+    const found: { id: string; term: string; replacement: string; type: 'PREFERRED' | 'FORBIDDEN' | 'REVIEW'; note: string }[] = []
+    for (const g of glossaryTerms) {
+      const t = norm(g.term)
+      if (t && haystack.includes(t)) found.push(g)
+    }
+    return found.slice(0, 8)
+  }, [title, content, glossaryTerms])
+
+  const replaceInContent = (term: string, replacement: string) => {
+    if (!replacement) return
+    const idx = content.indexOf(term)
+    if (idx < 0) return
+    setContent(content.slice(0, idx) + replacement + content.slice(idx + term.length))
+    markDirty()
+    toast.success(`«${term}» با «${replacement}» جایگزین شد.`)
+  }
+
   // ─── بارگذاری اولیه ────────────────────────────────────────────
   if (!isNew && !editingId) return null
   if (loading && !article && editingId) return <LoadingSpinner label="در حال بارگذاری مقاله…" />
@@ -671,6 +739,12 @@ export function ArticleEditorView() {
         <TabsList>
           <TabsTrigger value="content">محتوا</TabsTrigger>
           <TabsTrigger value="seo">سئو</TabsTrigger>
+          {editingId ? (
+            <TabsTrigger value="discussion" className="gap-1.5">
+              <MessageSquare className="h-3.5 w-3.5" aria-hidden />
+              گفتگوها
+            </TabsTrigger>
+          ) : null}
           {editingId ? <TabsTrigger value="versions">نسخه‌ها</TabsTrigger> : null}
         </TabsList>
 
@@ -932,6 +1006,54 @@ export function ArticleEditorView() {
                 </CardContent>
               </Card>
 
+              {/* راهنمای نگارش (واژه‌نامه) — هشدار غیرمسدودکننده */}
+              {!readonly && glossaryMatches.length > 0 ? (
+                <Card className="border-amber-200 dark:border-amber-900">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-amber-500" aria-hidden />
+                      راهنمای نگارش برند
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      این موارد با واژه‌نامه برند مطابقت دارد؛ جایگزینی اختیاری است و مانع ذخیره یا انتشار نمی‌شود.
+                    </p>
+                    {glossaryMatches.map((g) => (
+                      <div key={g.id} className="rounded-xl border p-3 space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium">«{g.term}»</span>
+                          {g.type === 'FORBIDDEN' ? (
+                            <Badge className="bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border-0">عبارت ممنوع</Badge>
+                          ) : g.type === 'REVIEW' ? (
+                            <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-0">نیازمند بررسی</Badge>
+                          ) : (
+                            <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border-0">واژه ترجیحی</Badge>
+                          )}
+                          {g.replacement ? (
+                            <span className="text-xs text-muted-foreground">
+                              پیشنهاد: <span className="font-medium text-foreground">«{g.replacement}»</span>
+                            </span>
+                          ) : null}
+                        </div>
+                        {g.note ? <p className="text-xs text-muted-foreground">{g.note}</p> : null}
+                        {g.replacement ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() => replaceInContent(g.term, g.replacement)}
+                            disabled={content.indexOf(g.term) < 0}
+                          >
+                            جایگزینی در متن
+                          </Button>
+                        ) : null}
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              ) : null}
+
               {/* دسته‌بندی و برچسب‌ها */}
               <Card>
                 <CardHeader className="pb-3">
@@ -1120,6 +1242,60 @@ export function ArticleEditorView() {
                   <p className="text-xs text-muted-foreground mt-1.5">فقط حروف انگلیسی، عدد و خط تیره</p>
                 </CardContent>
               </Card>
+
+              {/* عملکرد محتوا — شاخص‌های معتبر */}
+              {editingId && article ? (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-teal-600" aria-hidden />
+                      عملکرد محتوا
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">بازدید</span>
+                      <span className="font-semibold tabular-nums">{toFa(article.views)}</span>
+                    </div>
+                    {article.publishedAt ? (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">تاریخ انتشار</span>
+                          <span className="tabular-nums">{faDate(article.publishedAt)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">میانگین بازدید روزانه</span>
+                          <span className="tabular-nums">
+                            {toFa(
+                              Math.round(
+                                article.views /
+                                  Math.max(
+                                    1,
+                                    Math.ceil((Date.now() - new Date(article.publishedAt).getTime()) / 86400000)
+                                  )
+                              )
+                            )}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">هنوز منتشر نشده است.</p>
+                    )}
+                    {article.versions && article.versions.length > 0 ? (
+                      <div className="rounded-lg bg-muted/50 p-2.5 mt-1">
+                        <p className="text-xs flex items-center gap-1.5">
+                          <Eye className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                          آخرین تغییر مهم: <span className="font-medium">{article.versions[0].editorName}</span>
+                          <span className="text-muted-foreground">· {timeAgo(article.versions[0].createdAt)}</span>
+                        </p>
+                        {article.versions[0].note ? (
+                          <p className="text-[11px] text-muted-foreground mt-0.5">{article.versions[0].note}</p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </CardContent>
+                </Card>
+              ) : null}
             </div>
           </div>
         </TabsContent>
@@ -1186,6 +1362,15 @@ export function ArticleEditorView() {
               />
             </div>
           </div>
+        </TabsContent>
+
+        {/* ─── تب گفتگوها (همکاری در محل محتوا) ───────────────────── */}
+        <TabsContent value="discussion" className="mt-4">
+          {editingId ? (
+            <div className="max-w-3xl">
+              <ContentComments entityType="ARTICLE" entityId={editingId} />
+            </div>
+          ) : null}
         </TabsContent>
 
         {/* ─── تب نسخه‌ها ─────────────────────────────────────────── */}

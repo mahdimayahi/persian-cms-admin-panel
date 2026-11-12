@@ -11,6 +11,12 @@ import {
   Gauge,
   HeartPulse,
   Home,
+  LifeBuoy,
+  ListOrdered,
+  LayoutTemplate,
+  CopyMinus,
+  BookA,
+  PackageOpen,
   Image as ImageIcon,
   LayoutList,
   ListChecks,
@@ -51,6 +57,7 @@ import { timeAgo, toFa } from '@/lib/client/format'
 import { useAppStore } from '@/store/app-store'
 import { ROLE_LABELS, type Role } from '@/lib/permissions'
 import { CommandPalette } from '@/components/shared/command-palette'
+import { SupportReportDialog } from '@/components/shared/support-dialog'
 import { cn } from '@/lib/utils'
 
 type NavItem = { label: string; href: string; perm: string | null; icon: React.ElementType }
@@ -71,6 +78,10 @@ const MENU: NavGroup[] = [
       { label: 'دسته‌بندی‌ها', href: '/categories', perm: 'categories.manage', icon: FolderTree },
       { label: 'برچسب‌ها', href: '/tags', perm: 'tags.manage', icon: Tags },
       { label: 'دیدگاه‌ها', href: '/comments', perm: 'comments.view', icon: MessagesSquare },
+      { label: 'بسته‌های انتشار', href: '/bundles', perm: 'articles.view', icon: PackageOpen },
+      { label: 'الگوهای محتوا', href: '/templates', perm: 'articles.view', icon: LayoutTemplate },
+      { label: 'موارد مشابه', href: '/duplicates', perm: 'articles.view', icon: CopyMinus },
+      { label: 'واژه‌نامه', href: '/glossary', perm: 'articles.view', icon: BookA },
     ],
   },
   {
@@ -99,6 +110,8 @@ const MENU: NavGroup[] = [
     group: 'پایش و گزارش',
     items: [
       { label: 'سلامت محتوا', href: '/health', perm: 'articles.view', icon: HeartPulse },
+      { label: 'مرکز عملیات', href: '/operations', perm: null, icon: ListOrdered },
+      { label: 'گزارش‌های پشتیبانی', href: '/support', perm: 'users.manage', icon: LifeBuoy },
       { label: 'گزارش‌ها', href: '/reports', perm: 'reports.view', icon: Activity },
       { label: 'تاریخچه فعالیت‌ها', href: '/activity', perm: 'activity.view', icon: Activity },
       { label: 'تنظیمات', href: '/settings', perm: 'settings.view', icon: Settings },
@@ -110,6 +123,12 @@ const BREADCRUMBS: Record<string, string> = {
   '/dashboard': 'داشبورد',
   '/tasks': 'کارهای من',
   '/health': 'سلامت محتوا',
+  '/bundles': 'بسته‌های انتشار',
+  '/operations': 'مرکز عملیات',
+  '/templates': 'الگوهای محتوا',
+  '/duplicates': 'موارد مشابه',
+  '/glossary': 'واژه‌نامه',
+  '/support': 'گزارش‌های پشتیبانی',
   '/articles': 'مقالات',
   '/categories': 'دسته‌بندی‌ها',
   '/tags': 'برچسب‌ها',
@@ -461,7 +480,7 @@ function ThemeToggle() {
 }
 
 /* ─── منوی کاربر ─────────────────────────────────────────────── */
-function UserMenu() {
+function UserMenu({ onReport }: { onReport: () => void }) {
   const user = useAppStore((s) => s.user)
   const logout = useAppStore((s) => s.logout)
   if (!user) return null
@@ -506,6 +525,10 @@ function UserMenu() {
           <UserRound className="h-4 w-4 me-2" />
           پروفایل و امنیت
         </DropdownMenuItem>
+        <DropdownMenuItem onClick={onReport}>
+          <LifeBuoy className="h-4 w-4 me-2" />
+          گزارش مشکل
+        </DropdownMenuItem>
         <DropdownMenuItem variant="destructive" onClick={doLogout}>
           <LogOut className="h-4 w-4 me-2" />
           خروج از حساب
@@ -527,6 +550,7 @@ export function AdminShell({
 }) {
   const [mobileOpen, setMobileOpen] = React.useState(false)
   const [paletteOpen, setPaletteOpen] = React.useState(false)
+  const [supportOpen, setSupportOpen] = React.useState(false)
   const taskBadge = useTaskBadge()
 
   // میان‌بر Ctrl+K / Cmd+K برای پالت فرمان
@@ -629,10 +653,20 @@ export function AdminShell({
               >
                 <Search className="h-5 w-5" />
               </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-xl hover:bg-muted"
+                aria-label="گزارش مشکل"
+                title="گزارش مشکل"
+                onClick={() => setSupportOpen(true)}
+              >
+                <LifeBuoy className="h-5 w-5" />
+              </Button>
               <div className="h-6 w-px bg-border mx-1 hidden md:block" aria-hidden />
               <NotificationsBell />
               <ThemeToggle />
-              <UserMenu />
+              <UserMenu onReport={() => setSupportOpen(true)} />
             </div>
           </header>
 
@@ -674,6 +708,9 @@ export function AdminShell({
 
       {/* پالت فرمان سراسری (Ctrl+K) */}
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+
+      {/* گزارش مشکل (پشتیبانی تشخیصی) */}
+      <SupportReportDialog open={supportOpen} onOpenChange={setSupportOpen} />
     </div>
   )
 }

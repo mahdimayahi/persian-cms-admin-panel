@@ -29,6 +29,13 @@ async function makeGradientPng(colors: [string, string]): Promise<string> {
 
 async function main() {
   console.log('پاک‌سازی داده‌های قبلی...')
+  await db.supportTicket.deleteMany()
+  await db.glossaryTerm.deleteMany()
+  await db.contentTemplate.deleteMany()
+  await db.operationLog.deleteMany()
+  await db.bundleItem.deleteMany()
+  await db.publishBundle.deleteMany()
+  await db.contentComment.deleteMany()
   await db.healthIgnore.deleteMany()
   await db.favorite.deleteMany()
   await db.task.deleteMany()
@@ -329,6 +336,135 @@ async function main() {
         assignedByName: 'سیستم',
       },
     ],
+  })
+
+  // ─── قابلیت‌های چرخه دوم: گفتگو، بسته انتشار، الگو، واژه‌نامه، پشتیبانی ───
+  console.log('ایجاد گفتگوهای درون‌محتوایی...')
+  await db.contentComment.createMany({
+    data: [
+      {
+        entityType: 'ARTICLE',
+        entityId: createdArticles[3].id,
+        body: '@نگار کریمی لطفاً بخش «نکته کلیدی» را با یک مثال واقعی از زمان‌بندی انتشار کامل کن.',
+        authorId: editor.id,
+        authorName: 'علی رضایی',
+        mentions: JSON.stringify([author.id]),
+        status: 'OPEN',
+        assigneeId: author.id,
+        assigneeName: 'نگار کریمی',
+      },
+      {
+        entityType: 'ARTICLE',
+        entityId: createdArticles[3].id,
+        body: 'نمودار چرخه وضعیت را از نسخه قبلی نگه داریم یا نمودار جدید بسازیم؟',
+        authorId: admin.id,
+        authorName: 'سارا محمدی',
+        status: 'OPEN',
+      },
+      {
+        entityType: 'ARTICLE',
+        entityId: createdArticles[0].id,
+        body: 'جدول ماتریس مجوز با آخرین تصمیم تیم هم‌راستاست؛ تأیید شد.',
+        authorId: editor.id,
+        authorName: 'علی رضایی',
+        status: 'RESOLVED',
+        resolvedAt: new Date(now - 2 * day),
+        resolvedByName: 'علی رضایی',
+      },
+    ],
+  })
+
+  console.log('ایجاد بسته انتشار نمونه...')
+  const bundle = await db.publishBundle.create({
+    data: {
+      title: 'کمپین معرفی نسخه ۲٫۴',
+      note: 'انتشار هماهنگ خبر نسخه و مقاله مرتبط در همان بازه.',
+      status: 'DRAFT',
+      createdById: admin.id,
+      createdByName: 'سارا محمدی',
+      items: {
+        create: [
+          { articleId: createdArticles[7].id, snapshotStatus: 'APPROVED' }, // جست‌وجوی فارسی (تأییدشده)
+          { articleId: createdArticles[6].id, snapshotStatus: 'PUBLISHED' }, // نسخه ۲٫۴ (منتشرشده)
+        ],
+      },
+    },
+  })
+
+  await db.operationLog.create({
+    data: {
+      type: 'MEDIA_UPLOAD',
+      title: 'بارگذاری دسته‌ای تصاویر کمپین',
+      status: 'PARTIAL',
+      totalItems: 3,
+      doneItems: 2,
+      failedItems: 1,
+      initiatorId: editor.id,
+      initiatorName: 'علی رضایی',
+      resultSummary: '۲ فایل بارگذاری شد؛ ۱ فایل ناموفق.',
+      errorsJson: JSON.stringify([{ item: 'banner-summer.png', reason: 'حجم فایل بیش از ۵ مگابایت است.' }]),
+      createdAt: new Date(now - 3 * 3600_000),
+      finishedAt: new Date(now - 3 * 3600_000 + 45000),
+    },
+  })
+
+  console.log('ایجاد الگوهای محتوا...')
+  await db.contentTemplate.createMany({
+    data: [
+      {
+        name: 'مقاله آموزشی گام‌به‌گام',
+        description: 'ساختار استاندارد آموزش‌های گام‌به‌گام با پیش‌نیازها و جمع‌بندی.',
+        type: 'ARTICLE',
+        titleTemplate: 'آموزش گام‌به‌گام: [عنوان آموزش]',
+        excerptTemplate: 'در این آموزش، [موضوع] را گام‌به‌گام و با مثال عملی یاد می‌گیرید.',
+        contentTemplate: `# آموزش گام‌به‌گام: [عنوان]\n\n## پیش‌نیازها\n\n- [پیش‌نیاز اول]\n- [پیش‌نیاز دوم]\n\n## گام ۱: [عنوان گام]\n\nتوضیح گام اول…\n\n## گام ۲: [عنوان گام]\n\nتوضیح گام دوم…\n\n## جمع‌بندی\n\nدر این آموزش یاد گرفتیم…\n\n## پرسش‌های پرتکرار\n\n**س:** …\n\n**ج:** …`,
+        tagNames: JSON.stringify(['مستندسازی']),
+        isSystem: true,
+      },
+      {
+        name: 'معرفی خدمت (صفحه فرود)',
+        description: 'الگوی معرفی خدمت با مزایا، پرسش‌های متداول و فراخوان اقدام.',
+        type: 'LANDING',
+        titleTemplate: '[نام خدمت]؛ راهی برای [ارزش اصلی]',
+        excerptTemplate: 'معرفی [نام خدمت]، مزایا و شرایط استفاده.',
+        contentTemplate: `# [نام خدمت]\n\n**[نام خدمت]** برای [مشکل مخاطب] طراحی شده است.\n\n## مزایا\n\n1. [مزیت اول]\n2. [مزیت دوم]\n3. [مزیت سوم]\n\n## چه کسانی به آن نیاز دارند؟\n\n- [مخاطب اول]\n- [مخاطب دوم]\n\n## پرسش‌های متداول\n\n**س:** [پرسش]\n**ج:** [پاسخ]\n\n## درخواست مشاوره\n\nبرای شروع، از فرم تماس استفاده کنید.`,
+        tagNames: JSON.stringify([]),
+        isSystem: true,
+      },
+      {
+        name: 'خبر انتشار نسخه',
+        description: 'قالب خبری اعلام به‌روزرسانی محصول با بخش امکانات جدید.',
+        type: 'ARTICLE',
+        titleTemplate: 'به‌روزرسانی [شماره نسخه] منتشر شد',
+        excerptTemplate: 'در این نسخه، [خلاصه تغییرات] ارائه شده است.',
+        contentTemplate: `# نسخه [شماره نسخه] منتشر شد\n\n## امکانات جدید\n\n- [امکان ۱]\n- [امکان ۲]\n\n## بهبودها\n\n- [بهبود ۱]\n\n## رفع اشکال\n\n- [اشکال رفع‌شده]\n\n## ارتقا\n\nبرای به‌روزرسانی کافی است…`,
+        tagNames: JSON.stringify(['تیم اسکرام']),
+        isSystem: true,
+      },
+    ],
+  })
+
+  console.log('ایجاد واژه‌نامه نمونه...')
+  await db.glossaryTerm.createMany({
+    data: [
+      { term: 'اپلیکیشن', replacement: 'برنامه', type: 'PREFERRED', note: 'معادل فارسی ترجیح داده می‌شود.', createdByName: 'سارا محمدی' },
+      { term: 'ارزان‌ترین قیمت', replacement: 'کمترین قیمت', type: 'FORBIDDEN', note: 'حشو زبانی؛ «قیمت» تکرار شده است.', createdByName: 'سارا محمدی' },
+      { term: 'پنل', replacement: 'سامانه', type: 'REVIEW', note: 'بسته به لحن برند تصمیم بگیرید.', createdByName: 'سارا محمدی' },
+    ],
+  })
+
+  console.log('ایجاد گزارش پشتیبانی نمونه...')
+  await db.supportTicket.create({
+    data: {
+      code: 'SUP-4821',
+      userName: 'نگار کریمی',
+      userEmail: 'author@demo.ir',
+      page: '#/articles',
+      steps: 'فیلتر وضعیت را روی «منتشرشده» گذاشتم و دکمه خروجی CSV را زدم؛ فایل دانلود نشد.',
+      errorInfo: 'TypeError در کنسول مرورگر هنگام ساخت CSV',
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/17.4',
+      status: 'OPEN',
+    },
   })
 
   console.log('ایجاد علاقه‌مندی نمونه...')

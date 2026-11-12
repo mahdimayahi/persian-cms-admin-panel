@@ -10,6 +10,12 @@ import { AdminShell } from '@/components/admin/admin-shell'
 import { DashboardView } from '@/components/views/dashboard-view'
 import { TasksView } from '@/components/views/tasks-view'
 import { HealthView } from '@/components/views/health-view'
+import { BundlesView } from '@/components/views/bundles-view'
+import { OperationsView } from '@/components/views/operations-view'
+import { TemplatesView } from '@/components/views/templates-view'
+import { DuplicatesView } from '@/components/views/duplicates-view'
+import { GlossaryView } from '@/components/views/glossary-view'
+import { SupportView } from '@/components/views/support-view'
 import { ArticlesView } from '@/components/views/articles-view'
 import { ArticleEditorView } from '@/components/views/article-editor-view'
 import { CategoriesView } from '@/components/views/categories-view'
@@ -40,6 +46,18 @@ function renderView(path: string) {
       return <TasksView />
     case 'health':
       return <HealthView />
+    case 'bundles':
+      return <BundlesView />
+    case 'operations':
+      return <OperationsView />
+    case 'templates':
+      return <TemplatesView />
+    case 'duplicates':
+      return <DuplicatesView />
+    case 'glossary':
+      return <GlossaryView />
+    case 'support':
+      return <SupportView />
     case 'articles':
       if (seg.length === 1) return <ArticlesView />
       return <ArticleEditorView />

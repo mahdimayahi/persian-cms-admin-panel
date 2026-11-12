@@ -125,6 +125,7 @@ export function MediaView() {
     setUploading(true)
     let okCount = 0
     let failCount = 0
+    const errors: { item: string; reason: string }[] = []
     for (const file of list) {
       try {
         const fd = new FormData()
@@ -133,11 +134,29 @@ export function MediaView() {
         okCount++
       } catch (e) {
         failCount++
-        toast.error(e instanceof Error ? e.message : `بارگذاری «${file.name}» ناموفق بود.`)
+        const reason = e instanceof Error ? e.message : `بارگذاری «${file.name}» ناموفق بود.`
+        errors.push({ item: file.name, reason })
+        toast.error(reason)
       }
     }
     setUploading(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
+
+    // ثبت عملیات در مرکز عملیات (وضعیت، نتیجه و خطاهای قابل‌فهم)
+    if (list.length > 1 || failCount > 0) {
+      const status = failCount === 0 ? 'SUCCESS' : okCount === 0 ? 'FAILED' : 'PARTIAL'
+      apiPost('/api/operations', {
+        type: 'MEDIA_UPLOAD',
+        title: `بارگذاری ${list.length} فایل رسانه`,
+        status,
+        totalItems: list.length,
+        doneItems: okCount,
+        failedItems: failCount,
+        resultSummary: `${okCount} فایل بارگذاری شد${failCount ? `؛ ${failCount} فایل ناموفق بود` : ''}.`,
+        errors,
+      }).catch(() => undefined)
+    }
+
     if (okCount > 0) {
       toast.success(`${toFa(okCount)} فایل با موفقیت بارگذاری شد.`)
       setPage(1)

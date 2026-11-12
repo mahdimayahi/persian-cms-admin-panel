@@ -1,0 +1,749 @@
+     1→'use client'
+     2→
+     3→import * as React from 'react'
+     4→import {
+     5→  AlarmClock,
+     6→  ArrowLeft,
+     7→  Check,
+     8→  CheckCircle2,
+     9→  Eye,
+    10→  FileWarning,
+    11→  Flame,
+    12→  History,
+    13→  ListChecks,
+    14→  ListTodo,
+    15→  Loader2,
+    16→  Plus,
+    17→  RefreshCw,
+    18→} from 'lucide-react'
+    19→import { toast } from 'sonner'
+    20→import { Button } from '@/components/ui/button'
+    21→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+    22→import {
+    23→  Dialog,
+    24→  DialogContent,
+    25→  DialogDescription,
+    26→  DialogFooter,
+    27→  DialogHeader,
+    28→  DialogTitle,
+    29→} from '@/components/ui/dialog'
+    30→import { Input } from '@/components/ui/input'
+    31→import { Textarea } from '@/components/ui/textarea'
+    32→import {
+    33→  Select,
+    34→  SelectContent,
+    35→  SelectItem,
+    36→  SelectTrigger,
+    37→  SelectValue,
+    38→} from '@/components/ui/select'
+    39→import {
+    40→  PageHeader,
+    41→  StatusBadge,
+    42→  EmptyState,
+    43→  ErrorState,
+    44→  LoadingSpinner,
+    45→  Field,
+    46→} from '@/components/shared/ui-bits'
+    47→import { apiGet, apiPost } from '@/lib/client/api'
+    48→import { faDate, timeAgo, toFa } from '@/lib/client/format'
+    49→import { navigate } from '@/hooks/use-hash-route'
+    50→import { cn } from '@/lib/utils'
+    51→
+    52→/**
+    53→ * کمک‌تابع محلی برای endpointهایی که فقط PATCH را می‌پذیرند
+    54→ * (کتابخانه api کلاینت متد PATCH ندارد) — با همان قرارداد خطای apiGet
+    55→ */
+    56→async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
+    57→  const res = await fetch(path, {
+    58→    method: 'PATCH',
+    59→    headers: { 'Content-Type': 'application/json' },
+    60→    body: body !== undefined ? JSON.stringify(body) : undefined,
+    61→    credentials: 'same-origin',
+    62→  })
+    63→  if (!res.ok) {
+    64→    const b = (await res.json().catch(() => ({}))) as { error?: string }
+    65→    throw new Error(b.error || 'خطا')
+    66→  }
+    67→  return res.json() as Promise<T>
+    68→}
+    69→
+    70→type TaskType = 'GENERAL' | 'REVIEW' | 'REVISION' | 'HEALTH'
+    71→type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH'
+    72→
+    73→type MyTask = {
+    74→  id: string
+    75→  title: string
+    76→  description: string | null
+    77→  type: TaskType
+    78→  priority: TaskPriority
+    79→  status: string
+    80→  dueDate: string | null
+    81→  link: string | null
+    82→  relatedType: string | null
+    83→  relatedId: string | null
+    84→  assignedToId: string
+    85→  assignedByName: string | null
+    86→  createdAt: string
+    87→  updatedAt: string
+    88→  doneAt: string | null
+    89→}
+    90→
+    91→type TaskCenterData = {
+    92→  counts: {
+    93→    awaitingReview: number
+    94→    overdueReviews: number
+    95→    openTasks: number
+    96→    overdueTasks: number
+    97→    needsRevision: number
+    98→  }
+    99→  canReview: boolean
+   100→  awaitingReview: { id: string; title: string; updatedAt: string; author: { id: string; name: string } }[]
+   101→  overdueReviews: { id: string; title: string; reviewAt: string; lastReviewedAt: string | null; status: string }[]
+   102→  myTasks: MyTask[]
+   103→  needsRevision: { id: string; title: string; reviewNote: string | null; updatedAt: string }[]
+   104→  lastWork: { id: string; title: string; status: string; updatedAt: string } | null
+   105→  generatedAt: string
+   106→}
+   107→
+   108→type AssignableUser = { id: string; name: string; role: string; roleLabel: string }
+   109→
+   110→type TaskForm = {
+   111→  title: string
+   112→  description: string
+   113→  assignedToId: string
+   114→  type: TaskType
+   115→  priority: TaskPriority
+   116→  dueDate: string
+   117→}
+   118→
+   119→const emptyTaskForm = (): TaskForm => ({
+   120→  title: '',
+   121→  description: '',
+   122→  assignedToId: '',
+   123→  type: 'GENERAL',
+   124→  priority: 'MEDIUM',
+   125→  dueDate: '',
+   126→})
+   127→
+   128→const TYPE_LABELS: Record<TaskType, string> = {
+   129→  GENERAL: 'عمومی',
+   130→  REVIEW: 'بازبینی محتوا',
+   131→  REVISION: 'اصلاح محتوا',
+   132→  HEALTH: 'سلامت محتوا',
+   133→}
+   134→
+   135→const PRIORITY_LABELS: Record<TaskPriority, string> = {
+   136→  HIGH: 'فوری',
+   137→  MEDIUM: 'متوسط',
+   138→  LOW: 'کم‌اهمیت',
+   139→}
+   140→
+   141→const PRIORITY_DOT: Record<TaskPriority, string> = {
+   142→  HIGH: 'bg-rose-500',
+   143→  MEDIUM: 'bg-amber-500',
+   144→  LOW: 'bg-slate-400',
+   145→}
+   146→
+   147→/** آیتم‌های ادغام‌شده بخش «اولویت‌های امروز» */
+   148→type PriorityItem = {
+   149→  key: string
+   150→  title: string
+   151→  link: string | null
+   152→  taskId: string | null
+   153→  badge: { label: string; colorClass: string; bgClass: string }
+   154→}
+   155→
+   156→const editorLink = (articleId: string) => `#/articles/${articleId}/edit`
+   157→
+   158→const stripHash = (link: string) => link.replace(/^#/, '')
+   159→
+   160→export function TasksView() {
+   161→  const [data, setData] = React.useState<TaskCenterData | null>(null)
+   162→  const [loading, setLoading] = React.useState(true)
+   163→  const [error, setError] = React.useState<string | null>(null)
+   164→
+   165→  // گفت‌وگوی واگذاری کار
+   166→  const [dialogOpen, setDialogOpen] = React.useState(false)
+   167→  const [form, setForm] = React.useState<TaskForm>(emptyTaskForm)
+   168→  const [assignables, setAssignables] = React.useState<AssignableUser[]>([])
+   169→  const [assignablesLoading, setAssignablesLoading] = React.useState(false)
+   170→  const [titleError, setTitleError] = React.useState<string | null>(null)
+   171→  const [assigneeError, setAssigneeError] = React.useState<string | null>(null)
+   172→  const [saving, setSaving] = React.useState(false)
+   173→
+   174→  // ثبت انجام کار (PATCH) — برای غیرفعال‌کردن دکمه همان ردیف
+   175→  const [busyTaskId, setBusyTaskId] = React.useState<string | null>(null)
+   176→
+   177→  const load = React.useCallback(async () => {
+   178→    setLoading(true)
+   179→    setError(null)
+   180→    try {
+   181→      const res = await apiGet<TaskCenterData>('/api/tasks')
+   182→      setData(res)
+   183→    } catch (e) {
+   184→      setError(e instanceof Error ? e.message : 'خطا در دریافت کارهای شما')
+   185→    } finally {
+   186→      setLoading(false)
+   187→    }
+   188→  }, [])
+   189→
+   190→  React.useEffect(() => {
+   191→    load()
+   192→  }, [load])
+   193→
+   194→  /* ── نخستین‌های بخش «اولویت‌های امروز» ───────────────────── */
+   195→  const priorityItems = React.useMemo<PriorityItem[]>(() => {
+   196→    if (!data) return []
+   197→    const items: PriorityItem[] = []
+   198→    const now = Date.now()
+   199→
+   200→    for (const t of data.myTasks) {
+   201→      if (t.dueDate && new Date(t.dueDate).getTime() < now) {
+   202→        items.push({
+   203→          key: `task-${t.id}`,
+   204→          title: t.title,
+   205→          link: t.link,
+   206→          taskId: t.id,
+   207→          badge: { label: 'از موعد گذشته', colorClass: 'text-rose-700 dark:text-rose-400', bgClass: 'bg-rose-100 dark:bg-rose-950/60' },
+   208→        })
+   209→      }
+   210→    }
+   211→    for (const a of data.overdueReviews) {
+   212→      items.push({
+   213→        key: `review-${a.id}`,
+   214→        title: a.title,
+   215→        link: editorLink(a.id),
+   216→        taskId: null,
+   217→        badge: { label: 'مالکیت محتوا', colorClass: 'text-amber-700 dark:text-amber-400', bgClass: 'bg-amber-100 dark:bg-amber-950/60' },
+   218→      })
+   219→    }
+   220→    if (data.canReview) {
+   221→      for (const a of data.awaitingReview) {
+   222→        items.push({
+   223→          key: `await-${a.id}`,
+   224→          title: a.title,
+   225→          link: editorLink(a.id),
+   226→          taskId: null,
+   227→          badge: { label: 'صف بازبینی', colorClass: 'text-teal-700 dark:text-teal-400', bgClass: 'bg-teal-100 dark:bg-teal-950/60' },
+   228→        })
+   229→      }
+   230→    }
+   231→    for (const a of data.needsRevision) {
+   232→      items.push({
+   233→        key: `rev-${a.id}`,
+   234→        title: a.title,
+   235→        link: editorLink(a.id),
+   236→        taskId: null,
+   237→        badge: { label: 'نیازمند اصلاح', colorClass: 'text-orange-700 dark:text-orange-400', bgClass: 'bg-orange-100 dark:bg-orange-950/60' },
+   238→      })
+   239→    }
+   240→    return items.slice(0, 8)
+   241→  }, [data])
+   242→
+   243→  /* ── جمله بنر خلاصه ─────────────────────────────────────── */
+   244→  const summarySentence = React.useMemo(() => {
+   245→    if (!data) return ''
+   246→    const c = data.counts
+   247→    const parts: string[] = []
+   248→    if (c.awaitingReview > 0) parts.push(`${toFa(c.awaitingReview)} مقاله منتظر بررسی شما`)
+   249→    if (c.overdueReviews > 0) parts.push(`${toFa(c.overdueReviews)} بازبینی محتوا از موعد گذشته`)
+   250→    if (c.overdueTasks > 0) parts.push(`${toFa(c.overdueTasks)} کار از موعد گذشته`)
+   251→    else if (c.openTasks > 0) parts.push(`${toFa(c.openTasks)} کار واگذارشده باز`)
+   252→    if (c.needsRevision > 0) parts.push(`${toFa(c.needsRevision)} مقاله نیازمند اصلاح`)
+   253→    return parts.length === 0 ? '' : `${parts.join('، ')} دارید.`
+   254→  }, [data])
+   255→
+   256→  /* ── عملیات‌ها ──────────────────────────────────────────── */
+   257→  const completeTask = async (taskId: string) => {
+   258→    setBusyTaskId(taskId)
+   259→    try {
+   260→      await apiPatch(`/api/tasks/${taskId}`, { status: 'DONE' })
+   261→      toast.success('کار انجام شد')
+   262→      load()
+   263→    } catch (e) {
+   264→      toast.error(e instanceof Error ? e.message : 'ثبت انجام کار ناموفق بود.')
+   265→    } finally {
+   266→      setBusyTaskId(null)
+   267→    }
+   268→  }
+   269→
+   270→  const openDialog = async () => {
+   271→    setForm(emptyTaskForm())
+   272→    setTitleError(null)
+   273→    setAssigneeError(null)
+   274→    setDialogOpen(true)
+   275→    setAssignablesLoading(true)
+   276→    try {
+   277→      const res = await apiGet<{ items: AssignableUser[] }>('/api/users/assignable')
+   278→      setAssignables(res.items)
+   279→    } catch (e) {
+   280→      setAssignables([])
+   281→      toast.error(e instanceof Error ? e.message : 'دریافت فهرست اعضا ناموفق بود.')
+   282→    } finally {
+   283→      setAssignablesLoading(false)
+   284→    }
+   285→  }
+   286→
+   287→  const dueDateValid = form.dueDate !== '' && !Number.isNaN(new Date(form.dueDate).getTime())
+   288→
+   289→  const submitTask = async () => {
+   290→    const title = form.title.trim()
+   291→    if (title.length < 3) {
+   292→      setTitleError('عنوان کار باید دست‌کم ۳ نویسه باشد.')
+   293→      return
+   294→    }
+   295→    if (!form.assignedToId) {
+   296→      setAssigneeError('انتخاب مسئول کار الزامی است.')
+   297→      return
+   298→    }
+   299→    setSaving(true)
+   300→    setTitleError(null)
+   301→    setAssigneeError(null)
+   302→    try {
+   303→      await apiPost('/api/tasks', {
+   304→        title,
+   305→        description: form.description.trim() || undefined,
+   306→        type: form.type,
+   307→        priority: form.priority,
+   308→        dueDate: dueDateValid ? new Date(`${form.dueDate}T23:59:59`).toISOString() : '',
+   309→        assignedToId: form.assignedToId,
+   310→      })
+   311→      toast.success('کار واگذار شد.')
+   312→      setDialogOpen(false)
+   313→      load()
+   314→    } catch (e) {
+   315→      toast.error(e instanceof Error ? e.message : 'واگذاری کار ناموفق بود.')
+   316→    } finally {
+   317→      setSaving(false)
+   318→    }
+   319→  }
+   320→
+   321→  if (loading && !data) return <LoadingSpinner label="در حال بارگذاری کارهای شما…" />
+   322→  if (error) return <ErrorState message={error} onRetry={load} />
+   323→  if (!data) return null
+   324→
+   325→  const calm = summarySentence === ''
+   326→
+   327→  return (
+   328→    <div className="space-y-6">
+   329→      <PageHeader
+   330→        title="مرکز کارهای من"
+   331→        description="همه چیزهایی که منتظر شماست، در یک نگاه"
+   332→        icon={<ListChecks className="h-5 w-5" />}
+   333→        actions={
+   334→          <>
+   335→            <Button variant="outline" onClick={load} disabled={loading} className="gap-1.5">
+   336→              <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+   337→              به‌روزرسانی
+   338→            </Button>
+   339→            <Button onClick={openDialog} className="gap-1.5">
+   340→              <Plus className="h-4 w-4" />
+   341→              واگذاری کار جدید
+   342→            </Button>
+   343→          </>
+   344→        }
+   345→      />
+   346→
+   347→      {/* ── بنر خلاصه وضعیت ─────────────────────────────────── */}
+   348→      <div className="relative overflow-hidden rounded-2xl bg-sidebar text-sidebar-foreground p-6 shadow-md">
+   349→        <div className="absolute inset-0 pattern-grid" aria-hidden />
+   350→        <div className="absolute inset-0 bg-gradient-to-bl from-primary/30 via-transparent to-chart-3/15" aria-hidden />
+   351→        <div className="relative z-10 flex items-center gap-3">
+   352→          {calm ? (
+   353→            <span className="rounded-xl bg-emerald-500/15 p-2.5 text-emerald-400 shrink-0" aria-hidden>
+   354→              <CheckCircle2 className="h-6 w-6" />
+   355→            </span>
+   356→          ) : null}
+   357→          <p className="text-xl font-bold leading-8">
+   358→            {calm ? 'هیچ اقدام فوری در انتظار شما نیست — همه‌چیز مرتب است.' : summarySentence}
+   359→          </p>
+   360→        </div>
+   361→      </div>
+   362→
+   363→      {/* ── اولویت‌های امروز ────────────────────────────────── */}
+   364→      <Card className="rounded-2xl shadow-xs">
+   365→        <CardHeader>
+   366→          <CardTitle className="text-base flex items-center gap-2">
+   367→            <span className="rounded-lg bg-amber-500/10 p-1.5 text-amber-600 dark:text-amber-500" aria-hidden>
+   368→              <Flame className="h-4 w-4" />
+   369→            </span>
+   370→            اولویت‌های امروز
+   371→          </CardTitle>
+   372→          <CardDescription>مهم‌ترین اقلام نیازمند اقدام شما، به ترتیب اهمیت</CardDescription>
+   373→        </CardHeader>
+   374→        <CardContent className="space-y-2">
+   375→          {priorityItems.length === 0 ? (
+   376→            <EmptyState compact title="اولویت فوری ندارید" icon={<CheckCircle2 className="h-6 w-6" />} />
+   377→          ) : (
+   378→            priorityItems.map((item) => (
+   379→              <div
+   380→                key={item.key}
+   381→                className="flex items-center gap-2 rounded-xl border p-3 transition hover:border-primary/50 hover:bg-primary/5 group"
+   382→              >
+   383→                {item.link ? (
+   384→                  <button
+   385→                    type="button"
+   386→                    onClick={() => navigate(stripHash(item.link as string))}
+   387→                    className="min-w-0 flex-1 text-start rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+   388→                    aria-label={`رفتن به «${item.title}»`}
+   389→                  >
+   390→                    <p className="text-sm font-medium line-clamp-1">{item.title}</p>
+   391→                    <div className="mt-1.5">
+   392→                      <StatusBadge label={item.badge.label} colorClass={item.badge.colorClass} bgClass={item.badge.bgClass} />
+   393→                    </div>
+   394→                  </button>
+   395→                ) : (
+   396→                  <div className="min-w-0 flex-1">
+   397→                    <p className="text-sm font-medium line-clamp-1">{item.title}</p>
+   398→                    <div className="mt-1.5">
+   399→                      <StatusBadge label={item.badge.label} colorClass={item.badge.colorClass} bgClass={item.badge.bgClass} />
+   400→                    </div>
+   401→                  </div>
+   402→                )}
+   403→                {item.taskId ? (
+   404→                  <Button
+   405→                    variant="ghost"
+   406→                    size="sm"
+   407→                    className="gap-1 shrink-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+   408→                    disabled={busyTaskId === item.taskId}
+   409→                    onClick={() => completeTask(item.taskId as string)}
+   410→                    aria-label={`ثبت کار «${item.title}» به‌عنوان انجام‌شده`}
+   411→                  >
+   412→                    <Check className="h-4 w-4" />
+   413→                    انجام شد
+   414→                  </Button>
+   415→                ) : null}
+   416→              </div>
+   417→            ))
+   418→          )}
+   419→        </CardContent>
+   420→      </Card>
+   421→
+   422→      {/* ── کارت‌های تفصیلی ─────────────────────────────────── */}
+   423→      <div className="grid lg:grid-cols-2 gap-4">
+   424→        {/* در انتظار تأیید شما */}
+   425→        {data.canReview ? (
+   426→          <Card className="rounded-2xl shadow-xs">
+   427→            <CardHeader>
+   428→              <CardTitle className="text-base flex items-center gap-2">
+   429→                <span className="rounded-lg bg-teal-500/10 p-1.5 text-teal-600 dark:text-teal-400" aria-hidden>
+   430→                  <Eye className="h-4 w-4" />
+   431→                </span>
+   432→                در انتظار تأیید شما
+   433→              </CardTitle>
+   434→              <CardDescription>مقالاتی که منتظر بازبینی و تأیید شما هستند</CardDescription>
+   435→            </CardHeader>
+   436→            <CardContent className="space-y-2 max-h-96 overflow-y-auto">
+   437→              {data.awaitingReview.length === 0 ? (
+   438→                <EmptyState compact title="صف بازبینی خالی است" icon={<CheckCircle2 className="h-6 w-6" />} />
+   439→              ) : (
+   440→                data.awaitingReview.map((a) => (
+   441→                  <button
+   442→                    key={a.id}
+   443→                    type="button"
+   444→                    onClick={() => navigate(`/articles/${a.id}/edit`)}
+   445→                    className="w-full text-start rounded-xl border p-3 transition hover:border-primary/50 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring group"
+   446→                  >
+   447→                    <p className="text-sm font-medium line-clamp-1">{a.title}</p>
+   448→                    <div className="flex items-center justify-between mt-1.5">
+   449→                      <span className="text-xs text-muted-foreground">
+   450→                        {a.author.name} · {timeAgo(a.updatedAt)}
+   451→                      </span>
+   452→                      <ArrowLeft className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary group-hover:-translate-x-0.5 transition" aria-hidden />
+   453→                    </div>
+   454→                  </button>
+   455→                ))
+   456→              )}
+   457→            </CardContent>
+   458→          </Card>
+   459→        ) : null}
+   460→
+   461→        {/* بازبینی از موعد گذشته */}
+   462→        <Card className="rounded-2xl shadow-xs">
+   463→          <CardHeader>
+   464→            <CardTitle className="text-base flex items-center gap-2">
+   465→              <span className="rounded-lg bg-rose-500/10 p-1.5 text-rose-600 dark:text-rose-400" aria-hidden>
+   466→                <AlarmClock className="h-4 w-4" />
+   467→              </span>
+   468→              بازبینی از موعد گذشته
+   469→            </CardTitle>
+   470→            <CardDescription>بازبینی دوره‌ای محتوا که موعد آن سپری شده است</CardDescription>
+   471→          </CardHeader>
+   472→          <CardContent className="space-y-2 max-h-96 overflow-y-auto">
+   473→            {data.overdueReviews.length === 0 ? (
+   474→              <EmptyState compact title="بازبینی معوقه‌ای ندارید" icon={<CheckCircle2 className="h-6 w-6" />} />
+   475→            ) : (
+   476→              data.overdueReviews.map((a) => (
+   477→                <button
+   478→                  key={a.id}
+   479→                  type="button"
+   480→                  onClick={() => navigate(`/articles/${a.id}/edit`)}
+   481→                  className="w-full text-start rounded-xl border p-3 transition hover:border-primary/50 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring group"
+   482→                >
+   483→                  <p className="text-sm font-medium line-clamp-1">{a.title}</p>
+   484→                  <div className="flex items-center justify-between mt-1.5">
+   485→                    <span className="text-xs text-rose-600 dark:text-rose-400 font-medium">
+   486→                      موعد: {faDate(a.reviewAt)}
+   487→                    </span>
+   488→                    <ArrowLeft className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary group-hover:-translate-x-0.5 transition" aria-hidden />
+   489→                  </div>
+   490→                </button>
+   491→              ))
+   492→            )}
+   493→          </CardContent>
+   494→        </Card>
+   495→
+   496→        {/* کارهای واگذارشده به من */}
+   497→        <Card className="rounded-2xl shadow-xs">
+   498→          <CardHeader>
+   499→            <CardTitle className="text-base flex items-center gap-2">
+   500→              <span className="rounded-lg bg-violet-500/10 p-1.5 text-violet-600 dark:text-violet-400" aria-hidden>
+   501→                <ListTodo className="h-4 w-4" />
+   502→              </span>
+   503→              کارهای واگذارشده به من
+   504→            </CardTitle>
+   505→            <CardDescription>کارهایی که همکاران برای شما ثبت کرده‌اند</CardDescription>
+   506→          </CardHeader>
+   507→          <CardContent className="space-y-2 max-h-96 overflow-y-auto">
+   508→            {data.myTasks.length === 0 ? (
+   509→              <EmptyState
+   510→                compact
+   511→                title="کار واگذارشده‌ای ندارید"
+   512→                icon={<ListTodo className="h-6 w-6" />}
+   513→                action={
+   514→                  <Button variant="outline" size="sm" onClick={openDialog} className="gap-1.5">
+   515→                    <Plus className="h-4 w-4" />
+   516→                    واگذاری کار جدید
+   517→                  </Button>
+   518→                }
+   519→              />
+   520→            ) : (
+   521→              data.myTasks.map((t) => {
+   522→                const overdue = !!t.dueDate && new Date(t.dueDate).getTime() < Date.now()
+   523→                return (
+   524→                  <div key={t.id} className="rounded-xl border p-3 transition hover:border-primary/50 hover:bg-primary/5">
+   525→                    <div className="flex items-start gap-2.5">
+   526→                      <span
+   527→                        className={cn('mt-1.5 h-2 w-2 rounded-full shrink-0', PRIORITY_DOT[t.priority])}
+   528→                        title={`اولویت ${PRIORITY_LABELS[t.priority]}`}
+   529→                        aria-hidden
+   530→                      />
+   531→                      <div className="min-w-0 flex-1">
+   532→                        {t.link ? (
+   533→                          <button
+   534→                            type="button"
+   535→                            onClick={() => navigate(stripHash(t.link as string))}
+   536→                            className="text-start text-sm font-medium line-clamp-1 hover:text-primary underline-offset-4 hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+   537→                            aria-label={`رفتن به کار «${t.title}»`}
+   538→                          >
+   539→                            {t.title}
+   540→                          </button>
+   541→                        ) : (
+   542→                          <p className="text-sm font-medium line-clamp-1">{t.title}</p>
+   543→                        )}
+   544→                        {t.description ? (
+   545→                          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{t.description}</p>
+   546→                        ) : null}
+   547→                        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs text-muted-foreground">
+   548→                          {t.dueDate ? (
+   549→                            <span className={cn(overdue && 'text-rose-600 dark:text-rose-400 font-medium')}>
+   550→                              موعد: {faDate(t.dueDate)}
+   551→                            </span>
+   552→                          ) : null}
+   553→                          {t.assignedByName ? <span>واگذارشده توسط: {t.assignedByName}</span> : null}
+   554→                        </div>
+   555→                      </div>
+   556→                      <Button
+   557→                        variant="ghost"
+   558→                        size="sm"
+   559→                        className="gap-1 shrink-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+   560→                        disabled={busyTaskId === t.id}
+   561→                        onClick={() => completeTask(t.id)}
+   562→                        aria-label={`ثبت کار «${t.title}» به‌عنوان انجام‌شده`}
+   563→                      >
+   564→                        <Check className="h-4 w-4" />
+   565→                        انجام شد
+   566→                      </Button>
+   567→                    </div>
+   568→                  </div>
+   569→                )
+   570→              })
+   571→            )}
+   572→          </CardContent>
+   573→        </Card>
+   574→
+   575→        {/* نیازمند اصلاح */}
+   576→        <Card className="rounded-2xl shadow-xs">
+   577→          <CardHeader>
+   578→            <CardTitle className="text-base flex items-center gap-2">
+   579→              <span className="rounded-lg bg-orange-500/10 p-1.5 text-orange-600 dark:text-orange-500" aria-hidden>
+   580→                <FileWarning className="h-4 w-4" />
+   581→              </span>
+   582→              نیازمند اصلاح
+   583→            </CardTitle>
+   584→            <CardDescription>مقالاتی که در بازبینی برای اصلاح به شما بازگشته است</CardDescription>
+   585→          </CardHeader>
+   586→          <CardContent className="space-y-2 max-h-96 overflow-y-auto">
+   587→            {data.needsRevision.length === 0 ? (
+   588→              <EmptyState compact title="مقاله‌ای در انتظار اصلاح ندارید" icon={<CheckCircle2 className="h-6 w-6" />} />
+   589→            ) : (
+   590→              data.needsRevision.map((a) => (
+   591→                <button
+   592→                  key={a.id}
+   593→                  type="button"
+   594→                  onClick={() => navigate(`/articles/${a.id}/edit`)}
+   595→                  className="w-full text-start rounded-xl border p-3 transition hover:border-primary/50 hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring group"
+   596→                >
+   597→                  <p className="text-sm font-medium line-clamp-1">{a.title}</p>
+   598→                  {a.reviewNote ? (
+   599→                    <p className="text-xs text-orange-700 dark:text-orange-400 bg-orange-500/5 rounded-lg px-2.5 py-1.5 mt-1.5 line-clamp-2 leading-5">
+   600→                      {a.reviewNote}
+   601→                    </p>
+   602→                  ) : (
+   603→                    <span className="text-xs text-muted-foreground mt-1.5 inline-block">بدون یادداشت بازبینی</span>
+   604→                  )}
+   605→                  <div className="flex items-center justify-between mt-1.5">
+   606→                    <span className="text-xs text-muted-foreground">{timeAgo(a.updatedAt)}</span>
+   607→                    <ArrowLeft className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary group-hover:-translate-x-0.5 transition" aria-hidden />
+   608→                  </div>
+   609→                </button>
+   610→              ))
+   611→            )}
+   612→          </CardContent>
+   613→        </Card>
+   614→
+   615→        {/* ادامه آخرین کار */}
+   616→        {data.lastWork ? (
+   617→          <Card className="rounded-2xl shadow-xs card-accent-top">
+   618→            <CardHeader>
+   619→              <CardTitle className="text-base flex items-center gap-2">
+   620→                <span className="rounded-lg bg-cyan-500/10 p-1.5 text-cyan-600 dark:text-cyan-400" aria-hidden>
+   621→                  <History className="h-4 w-4" />
+   622→                </span>
+   623→                ادامه آخرین کار
+   624→              </CardTitle>
+   625→              <CardDescription>از همان‌جا که رها کردید ادامه دهید</CardDescription>
+   626→            </CardHeader>
+   627→            <CardContent>
+   628→              <p className="text-sm font-medium line-clamp-1">{data.lastWork.title}</p>
+   629→              <p className="text-xs text-muted-foreground mt-1.5">
+   630→                آخرین به‌روزرسانی: {timeAgo(data.lastWork.updatedAt)}
+   631→              </p>
+   632→              <Button
+   633→                className="mt-4 gap-1.5 rounded-xl"
+   634→                onClick={() => navigate(`/articles/${data.lastWork?.id}/edit`)}
+   635→              >
+   636→                ادامه ویرایش
+   637→                <ArrowLeft className="h-4 w-4" aria-hidden />
+   638→              </Button>
+   639→            </CardContent>
+   640→          </Card>
+   641→        ) : null}
+   642→      </div>
+   643→
+   644→      {/* ── گفت‌وگوی واگذاری کار جدید ───────────────────────── */}
+   645→      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+   646→        <DialogContent className="max-w-lg" dir="rtl">
+   647→          <DialogHeader>
+   648→            <DialogTitle>واگذاری کار جدید</DialogTitle>
+   649→            <DialogDescription>کار جدیدی برای یکی از اعضای تیم ثبت کنید تا در مرکز کارهای او نمایش داده شود.</DialogDescription>
+   650→          </DialogHeader>
+   651→          <div className="space-y-4 py-1">
+   652→            <Field label="عنوان کار" required htmlFor="task-title" error={titleError ?? undefined}>
+   653→              <Input
+   654→                id="task-title"
+   655→                value={form.title}
+   656→                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+   657→                placeholder="مثلاً: ویرایش و به‌روزرسانی مقاله راهنمای انتشار"
+   658→                maxLength={150}
+   659→              />
+   660→            </Field>
+   661→            <Field label="توضیح" htmlFor="task-description">
+   662→              <Textarea
+   663→                id="task-description"
+   664→                rows={2}
+   665→                value={form.description}
+   666→                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+   667→                placeholder="توضیح اختیاری درباره این کار…"
+   668→                maxLength={500}
+   669→              />
+   670→            </Field>
+   671→            <Field label="مسئول کار" required htmlFor="task-assignee" error={assigneeError ?? undefined}>
+   672→              <Select
+   673→                value={form.assignedToId}
+   674→                onValueChange={(v) => {
+   675→                  setForm((f) => ({ ...f, assignedToId: v }))
+   676→                  setAssigneeError(null)
+   677→                }}
+   678→              >
+   679→                <SelectTrigger id="task-assignee" className="w-full" aria-label="انتخاب مسئول کار">
+   680→                  <SelectValue placeholder={assignablesLoading ? 'در حال دریافت اعضا…' : 'انتخاب مسئول…'} />
+   681→                </SelectTrigger>
+   682→                <SelectContent className="max-h-60">
+   683→                  {assignables.map((u) => (
+   684→                    <SelectItem key={u.id} value={u.id}>
+   685→                      {u.name} — {u.roleLabel}
+   686→                    </SelectItem>
+   687→                  ))}
+   688→                </SelectContent>
+   689→              </Select>
+   690→            </Field>
+   691→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   692→              <Field label="نوع کار" htmlFor="task-type">
+   693→                <Select value={form.type} onValueChange={(v) => setForm((f) => ({ ...f, type: v as TaskType }))}>
+   694→                  <SelectTrigger id="task-type" className="w-full" aria-label="انتخاب نوع کار">
+   695→                    <SelectValue />
+   696→                  </SelectTrigger>
+   697→                  <SelectContent>
+   698→                    {(Object.keys(TYPE_LABELS) as TaskType[]).map((t) => (
+   699→                      <SelectItem key={t} value={t}>
+   700→                        {TYPE_LABELS[t]}
+   701→                      </SelectItem>
+   702→                    ))}
+   703→                  </SelectContent>
+   704→                </Select>
+   705→              </Field>
+   706→              <Field label="اولویت" htmlFor="task-priority">
+   707→                <Select value={form.priority} onValueChange={(v) => setForm((f) => ({ ...f, priority: v as TaskPriority }))}>
+   708→                  <SelectTrigger id="task-priority" className="w-full" aria-label="انتخاب اولویت">
+   709→                    <SelectValue />
+   710→                  </SelectTrigger>
+   711→                  <SelectContent>
+   712→                    {(Object.keys(PRIORITY_LABELS) as TaskPriority[]).map((p) => (
+   713→                      <SelectItem key={p} value={p}>
+   714→                        {PRIORITY_LABELS[p]}
+   715→                      </SelectItem>
+   716→                    ))}
+   717→                  </SelectContent>
+   718→                </Select>
+   719→              </Field>
+   720→            </div>
+   721→            <Field
+   722→              label="موعد انجام"
+   723→              htmlFor="task-due"
+   724→              hint={dueDateValid ? `موعد انتخابی: ${faDate(form.dueDate)}` : undefined}
+   725→            >
+   726→              <Input
+   727→                id="task-due"
+   728→                type="date"
+   729→                dir="ltr"
+   730→                value={form.dueDate}
+   731→                onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
+   732→              />
+   733→            </Field>
+   734→          </div>
+   735→          <DialogFooter>
+   736→            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
+   737→              انصراف
+   738→            </Button>
+   739→            <Button onClick={submitTask} disabled={saving || !form.title.trim() || !form.assignedToId}>
+   740→              {saving ? <Loader2 className="h-4 w-4 animate-spin me-1.5" aria-hidden /> : null}
+   741→              واگذاری کار
+   742→            </Button>
+   743→          </DialogFooter>
+   744→        </DialogContent>
+   745→      </Dialog>
+   746→    </div>
+   747→  )
+   748→}
+   749→
