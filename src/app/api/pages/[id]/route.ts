@@ -20,6 +20,7 @@ import {
   slugify,
 } from '@/lib/api-utils'
 import { logActivity } from '@/lib/audit'
+import { isTransientDbContention } from '@/lib/db-errors'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -127,45 +128,62 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     // ثبت ریدایرکت: فقط برای صفحهٔ منتشرشده با تغییر آدرس تأییدشده و درخواست صریح
     const registerRedirect = slugChanged && page.status === 'PUBLISHED' && (body.registerRedirect === true || body.registerRedirect === 'true')
 
-    const updated = await db.$transaction(async (tx) => {
-      // CAS اتمی روی نسخهٔ پایه: دو ویرایش هم‌زمان با نسخهٔ پایهٔ یکسان هرگز هر دو موفق نمی‌شوند
-      if (Object.keys(data).length > 0) {
-        const cas =
-          baseTime !== null
-            ? await tx.page.updateMany({ where: { id, updatedAt: new Date(baseTime) }, data })
-            : await tx.page.updateMany({ where: { id }, data })
-        if (cas.count === 0) {
-          const fresh = await tx.page.findUnique({ where: { id }, select: { updatedAt: true } })
-          throw new ApiError(409, 'این صفحه پس از باز شدن شما توسط شخص دیگری ویرایش شده است.', {
+    const updated = await db
+      .$transaction(
+        async (tx) => {
+          // CAS اتمی روی نسخهٔ پایه: دو ویرایش هم‌زمان با نسخهٔ پایهٔ یکسان هرگز هر دو موفق نمی‌شوند
+          if (Object.keys(data).length > 0) {
+            const cas =
+              baseTime !== null
+                ? await tx.page.updateMany({ where: { id, updatedAt: new Date(baseTime) }, data })
+                : await tx.page.updateMany({ where: { id }, data })
+            if (cas.count === 0) {
+              const fresh = await tx.page.findUnique({ where: { id }, select: { updatedAt: true } })
+              throw new ApiError(409, 'این صفحه پس از باز شدن شما توسط شخص دیگری ویرایش شده است.', {
+                conflict: true,
+                serverUpdatedAt: fresh?.updatedAt ?? page.updatedAt,
+              })
+            }
+          }
+          const u = await tx.page.findUnique({ where: { id } })
+          if (!u) throw new ApiError(404, 'صفحه یافت نشد.')
+          if (registerRedirect) {
+            // ساخت/به‌روزرسانی ریدایرکت از آدرس قبلی به آدرس جدید
+            await tx.redirect.upsert({
+              where: { fromPath: `/${oldSlug}` },
+              create: {
+                fromPath: `/${oldSlug}`,
+                toPath: `/${newSlug}`,
+                kind: 'SLUG_CHANGE',
+                entityType: 'PAGE',
+                entityId: id,
+                createdById: user.id,
+                createdByName: user.name,
+              },
+              update: {
+                toPath: `/${newSlug}`,
+                entityId: id,
+                entityType: 'PAGE',
+              },
+            })
+          }
+          return u
+        },
+        { timeout: 15_000, maxWait: 10_000 }
+      )
+      .catch((err: unknown) => {
+        if (err instanceof ApiError) throw err
+        // اشغال گذرای SQLite زیر رقابت هم‌زمان: در این نقطه علت معلوم است — نویسندهٔ دیگر روی
+        // همین سطر؛ بازنده با ۴۰۹ تعارض و serverUpdatedAt تازه روبه‌رو می‌شود (نه ۵۰۰/۵۰۳)
+        if (isTransientDbContention(err)) {
+          console.error('[API] page write contention (transient) → 409', err)
+          throw new ApiError(409, 'این صفحه هم‌زمان توسط دیگری ویرایش شد؛ نسخهٔ تازه بگیرید و دوباره تلاش کنید.', {
             conflict: true,
-            serverUpdatedAt: fresh?.updatedAt ?? page.updatedAt,
+            transient: true,
           })
         }
-      }
-      const u = await tx.page.findUnique({ where: { id } })
-      if (!u) throw new ApiError(404, 'صفحه یافت نشد.')
-      if (registerRedirect) {
-        // ساخت/به‌روزرسانی ریدایرکت از آدرس قبلی به آدرس جدید
-        await tx.redirect.upsert({
-          where: { fromPath: `/${oldSlug}` },
-          create: {
-            fromPath: `/${oldSlug}`,
-            toPath: `/${newSlug}`,
-            kind: 'SLUG_CHANGE',
-            entityType: 'PAGE',
-            entityId: id,
-            createdById: user.id,
-            createdByName: user.name,
-          },
-          update: {
-            toPath: `/${newSlug}`,
-            entityId: id,
-            entityType: 'PAGE',
-          },
-        })
-      }
-      return u
-    })
+        throw err
+      })
 
     await logActivity({
       userId: user.id,

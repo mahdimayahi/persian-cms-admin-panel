@@ -526,3 +526,47 @@ SQLite برای تیم‌های کوچک و متوسط (ده‌ها کاربر �
 ---
 
 خلاصه مسیر: **نصب Bun → دریافت کد → db:push + seed → build → systemd → Caddy/Nginx با HTTPS → تغییر رمزها → پشتیبان‌گیری خودکار**
+
+## قرارداد اعتماد به پروکسی معکوس و کوکی Secure نشست
+
+این سامانه برای تعیین پرچم `Secure` کوکی نشست (`cms_session`) تنها به نخستین مقدار هدر
+`x-forwarded-proto` تکیه می‌کند. رفتار دقیق و تست‌شده (سویت `cookie-secure` در هارنس):
+
+| محیط | هدر پروکسی | پرچم Secure کوکی |
+| --- | --- | --- |
+| توسعه/localhost بدون پروکسی | بدون هدر | ندارد |
+| استقرار پشت Caddy/Nginx با HTTPS | `x-forwarded-proto: https` | دارد |
+| زنجیرهٔ چند پروکسی | `x-forwarded-proto: https, http` | دارد (همیشه hop نخست ملاک است) |
+| پروکسی با اتصال HTTP داخلی | `x-forwarded-proto: http` | ندارد |
+
+الزامات استقرار:
+
+1. **production همیشه باید HTTPS باشد** و ورود و کوکی نشست هرگز از کانال رمزنشده عبور نکنند.
+2. پروکسی معکوس (Caddy) به‌طور خودکار `X-Forwarded-Proto` را **بازنویسی** می‌کند؛ اگر پروکسی
+   دیگری دارید، مطمئن شوید مقدار هدر را از کلاینت **عبور نمی‌دهد بلکه از نو ست می‌کند**
+   (در غیر این صورت کلاینتِ بدخواه می‌تواند هدر جعل کند).
+   نمونهٔ صحیح Nginx: `proxy_set_header X-Forwarded-Proto $scheme;`
+3. سامانه هرگز نباید مستقیماً و بدون پروکسی روی اینترنت با HTTP در دسترس باشد؛ در آن حالت
+   کوکی Secure ندارد و نشست در معرض شنود است. اگر هدر جعلی `x-forwarded-proto: https` از
+   اتصال HTTP خام بیاید، فقط پرچم کوکیِ همان مرورگر Secure می‌شود — خود ترافیک همچنان
+   رمزنشده است و باید با فایروال/پروکسی مسدود شود.
+4. کوکی نشست همیشه `HttpOnly` و `SameSite=Lax` است؛ این دو پرچم مستقل از محیط‌اند.
+
+اجرای مجدد شواهد:
+
+```bash
+bun run test:harness        # سویت «کوکی Secure — قرارداد اعتماد به پروکسی»
+```
+
+## بیلد ایزولهٔ production و هارنس تست
+
+```bash
+bun run build:isolated      # خروجی در .next-prod/ (بدون دست‌زدن به .next سرور توسعه)
+# اجرای خروجی production:
+NODE_ENV=production PORT=3311 HOSTNAME=127.0.0.1 DATABASE_URL="file:<مسیر مطلق>/db/prod-smoke.db" \
+  bun .next-prod/standalone/server.js
+bun run test:harness        # ۵۰ چک با دیتابیس موقت و سرور مجزا (پورت ۳۲۱۱، distDir=.next-harness)
+```
+
+نکتهٔ مسیر پایگاه‌داده: `DATABASE_URL` نسبی (`file:../db/custom.db`) هم در CLI پرisma و هم در
+زمان اجرا نسبت به پوشهٔ `prisma/` حل می‌شود؛ در استقرار production مقدار **مطلق** توصیه می‌شود.

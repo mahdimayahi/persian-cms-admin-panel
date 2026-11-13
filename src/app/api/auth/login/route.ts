@@ -13,9 +13,10 @@ import { logActivity } from '@/lib/audit'
 
 export async function POST(req: NextRequest) {
   try {
-    // محدودسازی نرخ بر اساس IP
+    // محدودسازی نرخ بر اساس IP — سقف برای محیط تست پیکربندی‌پذیر است (پیش‌فرض production: ۱۰)
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'local'
-    if (!checkRateLimit(`login:${ip}`, 10, 10 * 60 * 1000)) {
+    const loginMaxAttempts = Math.max(1, Number(process.env.LOGIN_RATE_LIMIT_MAX) || 10)
+    if (!checkRateLimit(`login:${ip}`, loginMaxAttempts, 10 * 60 * 1000)) {
       throw new ApiError(429, 'تلاش بیش از حد برای ورود. لطفاً چند دقیقه دیگر تلاش کنید.')
     }
 

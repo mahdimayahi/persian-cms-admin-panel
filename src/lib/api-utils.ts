@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser, SessionUser } from '@/lib/auth'
 import { Permission, roleHasPermission } from '@/lib/permissions'
+import { classifyPrismaError } from '@/lib/db-errors'
 
 export class ApiError extends Error {
   status: number
@@ -25,17 +26,16 @@ export function fail(status: number, message: string, data?: unknown) {
   return NextResponse.json({ error: message, ...(data !== undefined ? { data } : {}) }, { status })
 }
 
-/** تبدیل خطا به پاسخ استاندارد */
+/** تبدیل خطا به پاسخ استاندارد — علت در پاسخ (code) و در لاگ سرور هر دو ثبت می‌شود */
 export function handleApiError(err: unknown) {
   if (err instanceof ApiError) return fail(err.status, err.message, err.data)
-  // نقض یکتایی رکورد (ارسال هم‌زمان تکراری) → تعارض، نه خطای سرور
-  if ((err as { code?: string }).code === 'P2002') {
-    return fail(409, 'رکورد تکراری است؛ تغییر مشابهی هم‌زمان ثبت شده است.')
-  }
-  // رقابت تراکنش‌های هم‌زمان روی قفل خوش‌بینانه (SQLite) → تعارض قابل تلاش مجدد، نه خطای سرور
-  if ((err as { code?: string }).code === 'P2034' || (err as { code?: string }).code === 'P2028') {
-    return fail(409, 'این رکورد هم‌زمان توسط دیگری تغییر کرد؛ نسخه تازه بگیرید و دوباره تلاش کنید.', {
-      conflict: true,
+  const cls = classifyPrismaError(err)
+  if (cls) {
+    console.error(`[API] Prisma ${cls.code} → ${cls.status}${cls.conflict ? ' (conflict)' : ''}${cls.transient ? ' (transient)' : ''}`, err)
+    return fail(cls.status, cls.message, {
+      code: cls.code,
+      ...(cls.conflict ? { conflict: true } : {}),
+      ...(cls.transient ? { transient: true } : {}),
     })
   }
   console.error('[API]', err)

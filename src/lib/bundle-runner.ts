@@ -1,5 +1,5 @@
 /**
- * موتور اجرای بسته انتشار + الزام «اتصال نسخه»
+ * موتور اجرای بسته انتشار + الزام «اتصال نسخه» + قرارداد مالکیت اجرا
  *
  * قواعد کلیدی:
  * - هر قلم هنگام افزودن به بسته به یک ArticleVersion مشخص متصل می‌شود؛ شماره نسخه = جایگاه نسخه
@@ -9,10 +9,14 @@
  * - «گارد نسخه» پیش از هر اجرا: نسخهٔ تأییدشده (approvedVersionId و در نبود آن versionId)
  *   باید همان آخرین نسخهٔ مقاله باشد و وضعیت مقاله هم APPROVED (یا PUBLISHED = قبلاً منتشرشده).
  *   در صورت مغایرت، اجرا آغاز نمی‌شود؛ تأیید بسته باطل و وضعیت به «در بررسی» بازمی‌گردد.
+ * - «مالکیت اجرا»: ساخت OperationLog(RUNNING) → claim اتمی بسته با ثبت runOpId → گارد مالکیت
+ *   درون تراکنش هر قلم → نهایی‌سازی مشروط به مالکیت. اجرای قدیمی که مالکیتش را از دست داده
+ *   (reclaim اجرای معلق پس از قطع پردازشگر) در نخستین گارد متوقف می‌شود و دیگر نمی‌تواند بنویسد.
  * - شکست یک قلم هرگز پشت موفقیت کل پنهان نمی‌شود: نتیجهٔ هر قلم ثبت و وضعیت نهایی بسته
  *   می‌تواند PUBLISHED | PARTIAL | FAILED باشد.
  * - «تلاش مجدد» فقط قلم‌های FAILED را دوباره اجرا می‌کند؛ قلم‌های موفق قبلی SKIPPED ثبت می‌شوند.
  */
+import { Prisma, PrismaClient } from '@prisma/client'
 import { db } from '@/lib/db'
 import { ApiError } from '@/lib/api-utils'
 import { logActivity, notifyUser } from '@/lib/audit'
@@ -211,10 +215,80 @@ export async function invalidateApproval(
   }
 }
 
-// ─── اجرای بسته ──────────────────────────────────────────────────
+// ─── اجرای بسته و قرارداد مالکیت ─────────────────────────────────
 
 /** آستانهٔ مرگ پردازشگر برای اجرای معلق بسته — هماهنگ با STALE_MS در operations */
 const BUNDLE_STALE_MS = 90_000
+
+/**
+ * خطای «مالکیت اجرا از دست رفت»: پس از آن این پردازشگر حق هیچ نوشتنی ندارد
+ * (reclaim اجرای معلق opLog را FAILED کرده و پردازشگر تازه مالک شده است).
+ */
+export class OwnershipLostError extends Error {
+  constructor() {
+    super('مالکیت اجرا از دست رفت؛ پردازشگر قدیمی متوقف شد و اجازهٔ نوشتن ندارد.')
+    this.name = 'OwnershipLostError'
+  }
+}
+
+/** کلاینت اصلی یا کلاینت تراکنش Prisma */
+type DbClient = PrismaClient | Prisma.TransactionClient
+
+/**
+ * claim اتمی مالکیت اجرا: بسته فقط از وضعیت‌های مجاز به PUBLISHING با ثبت runOpId برده می‌شود.
+ * دو درخواست موازی: دقیقاً یکی count=۱ می‌گیرد (مالک)؛ دیگری false می‌بیند و رد می‌شود.
+ * در صورت false، opLog ایجادشده همان‌جا بسته می‌شود تا RUNNING سرگردان باقی نماند.
+ */
+export async function claimBundleRun(bundleId: string, opLogId: string, allowedFrom: string[]): Promise<boolean> {
+  const claim = await db.publishBundle.updateMany({
+    where: { id: bundleId, status: { in: allowedFrom } },
+    data: { status: 'PUBLISHING', runOpId: opLogId },
+  })
+  if (claim.count !== 1) {
+    await db.operationLog
+      .updateMany({
+        where: { id: opLogId, status: 'RUNNING' },
+        data: {
+          status: 'FAILED',
+          finishedAt: new Date(),
+          resultSummary: 'دریافت مالکیت اجرا ناموفق بود؛ اجرای هم‌زمان دیگری پیشی گرفت.',
+        },
+      })
+      .catch(() => undefined)
+    return false
+  }
+  return true
+}
+
+/**
+ * ضربان قلب + گارد زنده‌ماندن مالکیت: اتمی روی OperationLog (id + RUNNING).
+ * count=۰ یعنی reclaim این اجرا را FAILED کرده — پردازشگر قدیمی باید فوراً بدون نوشتن متوقف شود.
+ * درون تراکنش هر قلم فراخوانی می‌شود تا هیچ نوشتنی بعد از از دست رفتن مالکیت رخ ندهد.
+ */
+export async function touchRunOwnership(opLogId: string, client?: DbClient): Promise<void> {
+  const c = client ?? db
+  const touch = await c.operationLog.updateMany({
+    where: { id: opLogId, status: 'RUNNING' },
+    data: { heartbeatAt: new Date() },
+  })
+  if (touch.count === 0) throw new OwnershipLostError()
+}
+
+/**
+ * نهایی‌سازی وضعیت بسته — فقط اگر هنوز مالک اجرا باشیم (runOpId + وضعیت PUBLISHING).
+ * worker قدیمی که مالکیت را از دست داده با این گارد هرگز نمی‌تواند وضعیت بسته را بازنویسی کند.
+ */
+export async function finalizeBundleRun(
+  bundleId: string,
+  opLogId: string,
+  data: { status: string; publishedAt?: Date }
+): Promise<boolean> {
+  const res = await db.publishBundle.updateMany({
+    where: { id: bundleId, runOpId: opLogId, status: 'PUBLISHING' },
+    data: { status: data.status, ...(data.publishedAt ? { publishedAt: data.publishedAt } : {}) },
+  })
+  return res.count === 1
+}
 
 /**
  * بازیابی اجرای معلق: اگر بسته در وضعیت PUBLISHING رها شده باشد (قطع پردازشگر)،
@@ -246,11 +320,12 @@ async function reclaimStaleBundleRun(bundleId: string): Promise<void> {
   }
 
   // بازسازی وضعیت بسته از نتایج ثبت‌شدهٔ اقلام تا claim اتمی بعدی بتواند مالکیت بگیرد
+  // (runOpId اجرای مرده نیز پاک می‌شود تا شناسهٔ مالک قبلی دیگر معنا نداشته باشد)
   const items = await db.bundleItem.findMany({ where: { bundleId }, select: { result: true } })
   const succeeded = items.filter((i) => i.result === 'SUCCESS').length
   const failed = items.filter((i) => i.result === 'FAILED').length
   const restored = failed > 0 ? (succeeded > 0 ? 'PARTIAL' : 'FAILED') : 'APPROVED'
-  await db.publishBundle.update({ where: { id: bundleId }, data: { status: restored } })
+  await db.publishBundle.update({ where: { id: bundleId }, data: { status: restored, runOpId: null } })
 }
 
 /** دلیل فارسی عدم امکان انتشار بر اساس وضعیت مقاله */
@@ -273,7 +348,8 @@ function publishBlockReason(status: string): string {
  * اجرای بسته انتشار:
  * - فقط از وضعیت APPROVED/SCHEDULED (انتشار فوری) یا PARTIAL/FAILED (تلاش مجدد) فراخوانی شود.
  * - retryOnly: فقط قلم‌های FAILED دوباره اجرا می‌شوند؛ بقیه در گزارش با SKIPPED ثبت می‌شوند.
- * - هر قلم مستقل منتشر می‌شود و نتیجه‌اش روی BundleItem و OperationItem ثبت می‌گردد.
+ * - هر قلم داخل یک تراکنش اتمی منتشر می‌شود (گارد مالکیت + گارد نسخه + تغییر وضعیت — همه یا هیچ)
+ *   و نتیجه‌اش روی BundleItem و OperationItem ثبت می‌گردد.
  */
 export async function executeBundle(
   bundleId: string,
@@ -322,19 +398,8 @@ export async function executeBundle(
     })
   }
 
-  // مالکیت اتمی اجرا: فقط یک درخواست می‌تواند بسته را از وضعیت مجاز به PUBLISHING ببرد؛
-  // درخواست هم‌زمان دوم شمارش صفر می‌گیرد و با ۴۰۹ رد می‌شود (claim-then-act بدون رقابت).
-  const claim = await db.publishBundle.updateMany({
-    where: {
-      id: bundleId,
-      status: retryOnly ? { in: ['PARTIAL', 'FAILED'] } : { in: ['APPROVED', 'SCHEDULED'] },
-    },
-    data: { status: 'PUBLISHING' },
-  })
-  if (claim.count === 0) {
-    throw new ApiError(409, 'بسته در حال اجراست یا وضعیت آن برای اجرا مجاز نیست.')
-  }
-
+  // opLog پیش از claim ساخته می‌شود (RUNNING) و مبنای گارد مالکیت هر قلم است؛
+  // اگر claim شکست بخورد، همان‌جا FAILED می‌شود تا RUNNING سرگردان باقی نماند.
   const opLog = await db.operationLog.create({
     data: {
       type: 'BUNDLE_PUBLISH',
@@ -350,12 +415,22 @@ export async function executeBundle(
     },
   })
 
+  // مالکیت اتمی اجرا: فقط یک درخواست می‌تواند بسته را با ثبت runOpId به PUBLISHING ببرد؛
+  // درخواست هم‌زمان دوم شمارش صفر می‌گیرد و با ۴۰۹ رد می‌شود.
+  const claimed = await claimBundleRun(
+    bundleId,
+    opLog.id,
+    retryOnly ? ['PARTIAL', 'FAILED'] : ['APPROVED', 'SCHEDULED']
+  )
+  if (!claimed) {
+    throw new ApiError(409, 'بسته در حال اجراست یا وضعیت آن برای اجرا مجاز نیست.')
+  }
+
   const results: BundleItemResult[] = []
+  // اگر در میانهٔ اجرا مالکیت از دست برود (reclaim اجرای معلق)، حلقه بدون هیچ نوشتنی ترک می‌شود
+  let ownershipLost = false
 
   for (const item of bundle.items) {
-    // ضربان قلب پردازشگر در هر قلم — مبنای تشخیص اجرای معلق پس از قطع ناگهانی
-    await db.operationLog.update({ where: { id: opLog.id }, data: { heartbeatAt: new Date() } })
-
     const article = item.article
     const title = article.title
 
@@ -377,28 +452,59 @@ export async function executeBundle(
     }
 
     try {
-      if (article.status === 'PUBLISHED') {
-        const msg = 'از قبل منتشر شده بود.'
-        results.push({ itemId: item.id, articleId: article.id, title, result: 'SUCCESS', message: msg })
-        await db.bundleItem.update({ where: { id: item.id }, data: { result: 'SUCCESS', message: msg } })
-      } else if (article.status === 'APPROVED') {
-        // گارد نسخه در لحظهٔ انتشار هر قلم: نسخهٔ هدف باید همان آخرین نسخهٔ مقاله باشد؛
-        // در غیر این صورت نسخهٔ تأییدنشده هرگز منتشر نمیشود (پوشش رقابت بین گارد اولیه و اجرا)
-        const versions = await listArticleVersionsAsc(article.id)
-        const latest = versions[versions.length - 1]
-        const targetId = item.approvedVersionId ?? item.versionId
-        if (!targetId || !latest || latest.id !== targetId) {
-          throw new Error('تغییر نسخه پس از تأیید؛ انتشار این قلم متوقف شد تا نسخهٔ تأییدنشده منتشر نشود.')
-        }
-        await db.article.update({
+      // هر قلم در یک تراکنش اتمی:
+      //  ۱) گارد مالکیت (touch روی opLog خودمان) — اگر reclaim شده باشد تراکنش خنثی می‌شود
+      //  ۲) گارد نسخه در لحظهٔ انتشار — بازخوانی وضعیت/نسخه داخل همان تراکنش (بدون پنجرهٔ رقابت)
+      //  ۳) تغییر وضعیت مقاله + بستن کارها + ثبت نتیجهٔ قلم — همه یا هیچ
+      await db.$transaction(async (tx) => {
+        await touchRunOwnership(opLog.id, tx)
+
+        const fresh = await tx.article.findUnique({
           where: { id: article.id },
-          data: { status: 'PUBLISHED', publishedAt: new Date(), reviewNote: null },
+          select: { id: true, status: true },
         })
-        // بستن کارهای باز مرتبط، اعلان نویسنده و ثبت فعالیت
-        await db.task.updateMany({
-          where: { relatedType: 'ARTICLE', relatedId: article.id, type: { in: ['REVIEW', 'REVISION'] }, status: 'OPEN' },
-          data: { status: 'DONE', doneAt: new Date() },
-        })
+        if (!fresh) throw new Error('مقاله یافت نشد.')
+
+        if (fresh.status === 'PUBLISHED') {
+          const msg = 'از قبل منتشر شده بود.'
+          results.push({ itemId: item.id, articleId: article.id, title, result: 'SUCCESS', message: msg })
+          await tx.bundleItem.update({ where: { id: item.id }, data: { result: 'SUCCESS', message: msg } })
+          return
+        }
+
+        if (fresh.status === 'APPROVED') {
+          const versions = await tx.articleVersion.findMany({
+            where: { articleId: article.id },
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+            select: { id: true },
+          })
+          const latest = versions[versions.length - 1]
+          const targetId = item.approvedVersionId ?? item.versionId
+          if (!targetId || !latest || latest.id !== targetId) {
+            throw new Error('تغییر نسخه پس از تأیید؛ انتشار این قلم متوقف شد تا نسخهٔ تأییدنشده منتشر نشود.')
+          }
+          await tx.article.update({
+            where: { id: article.id },
+            data: { status: 'PUBLISHED', publishedAt: new Date(), reviewNote: null },
+          })
+          await tx.task.updateMany({
+            where: { relatedType: 'ARTICLE', relatedId: article.id, type: { in: ['REVIEW', 'REVISION'] }, status: 'OPEN' },
+            data: { status: 'DONE', doneAt: new Date() },
+          })
+          const msg = 'منتشر شد.'
+          results.push({ itemId: item.id, articleId: article.id, title, result: 'SUCCESS', message: msg })
+          await tx.bundleItem.update({ where: { id: item.id }, data: { result: 'SUCCESS', message: msg } })
+          return
+        }
+
+        const msg = publishBlockReason(fresh.status)
+        results.push({ itemId: item.id, articleId: article.id, title, result: 'FAILED', message: msg })
+        await tx.bundleItem.update({ where: { id: item.id }, data: { result: 'FAILED', message: msg } })
+      })
+
+      // اعلان و فعالیت پس از کامیتِ تراکنش قلم (اثر جانبی غیربحرانی)
+      const last = results[results.length - 1]
+      if (last?.result === 'SUCCESS' && last.message === 'منتشر شد.') {
         await notifyUser(article.authorId, {
           type: 'PUBLISHED',
           title: 'مقاله شما منتشر شد',
@@ -414,19 +520,35 @@ export async function executeBundle(
           entityTitle: title,
           details: `انتشار از طریق بسته «${bundle.title}»`,
         })
-        const msg = 'منتشر شد.'
-        results.push({ itemId: item.id, articleId: article.id, title, result: 'SUCCESS', message: msg })
-        await db.bundleItem.update({ where: { id: item.id }, data: { result: 'SUCCESS', message: msg } })
-      } else {
-        const msg = publishBlockReason(article.status)
-        results.push({ itemId: item.id, articleId: article.id, title, result: 'FAILED', message: msg })
-        await db.bundleItem.update({ where: { id: item.id }, data: { result: 'FAILED', message: msg } })
       }
     } catch (e) {
+      if (e instanceof OwnershipLostError) {
+        ownershipLost = true
+        console.warn(`[bundle-runner] ownership lost for bundle ${bundleId}; stale worker ${opLog.id} aborted cleanly`)
+        break
+      }
       const msg = e instanceof Error ? e.message : 'خطای نامشخص در انتشار.'
-      results.push({ itemId: item.id, articleId: article.id, title, result: 'FAILED', message: msg })
-      await db.bundleItem.update({ where: { id: item.id }, data: { result: 'FAILED', message: msg } })
+      // ثبت شکست قلم نیز باید داخل گارد مالکیت باشد
+      try {
+        await db.$transaction(async (tx) => {
+          await touchRunOwnership(opLog.id, tx)
+          results.push({ itemId: item.id, articleId: article.id, title, result: 'FAILED', message: msg })
+          await tx.bundleItem.update({ where: { id: item.id }, data: { result: 'FAILED', message: msg } })
+        })
+      } catch (e2) {
+        if (e2 instanceof OwnershipLostError) {
+          ownershipLost = true
+          console.warn(`[bundle-runner] ownership lost for bundle ${bundleId}; stale worker ${opLog.id} aborted cleanly`)
+          break
+        }
+        throw e2
+      }
     }
+  }
+
+  if (ownershipLost) {
+    // پردازشگر تازه مسئول نهایی‌سازی است؛ این اجرا فقط بدون نوشتن خارج می‌شود
+    return { status: 'FAILED', results, opId: opLog.id }
   }
 
   // ثبت نتیجهٔ تک‌تک اقلام در گزارش عملیات
@@ -451,16 +573,19 @@ export async function executeBundle(
 
   const opStatus = failCount === 0 && successCount > 0 ? 'SUCCESS' : successCount > 0 ? 'PARTIAL' : 'FAILED'
 
-  await db.publishBundle.update({
-    where: { id: bundleId },
-    data: {
-      status: finalStatus,
-      ...(successCount > 0 && !bundle.publishedAt ? { publishedAt: new Date() } : {}),
-    },
+  // نهایی‌سازی مشروط به مالکیت: worker قدیمی حتی اگر تا اینجا زنده مانده باشد نمی‌تواند بنویسد
+  const finalized = await finalizeBundleRun(bundleId, opLog.id, {
+    status: finalStatus,
+    ...(successCount > 0 && !bundle.publishedAt ? { publishedAt: new Date() } : {}),
   })
+  if (!finalized) {
+    console.warn(`[bundle-runner] finalize skipped for bundle ${bundleId}: run ${opLog.id} no longer owns the bundle`)
+    return { status: 'FAILED', results, opId: opLog.id }
+  }
 
-  await db.operationLog.update({
-    where: { id: opLog.id },
+  // ثبت نتیجهٔ نهایی opLog نیز گارد مالکیت دارد (اگر reclaim شده باشد دست‌نخورده می‌ماند)
+  await db.operationLog.updateMany({
+    where: { id: opLog.id, status: 'RUNNING' },
     data: {
       status: opStatus,
       doneItems: successCount,

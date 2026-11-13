@@ -353,6 +353,7 @@ model PublishBundle {
   title          String
   note           String       @default("") // توضیح بسته
   status         String       @default("DRAFT") // DRAFT | IN_REVIEW | APPROVED | SCHEDULED | PUBLISHING | PUBLISHED | PARTIAL | FAILED | CANCELLED
+  runOpId        String?      // شناسهٔ OperationLog مالک اجرای جاری — پایهٔ گارد اتمی مالکیت (worker قدیمی نمی‌تواند بنویسد)
   ownerId        String?      // مسئول بسته (مسئول پاسخ‌گویی)
   ownerName      String?
   scheduledAt    DateTime?    // زمان انتشار زمان‌بندی‌شده (UTC)

@@ -516,6 +516,13 @@ function hasSessionEvent(events: GoalEventRow[], visitorId: string, eventType: s
 /**
  * تلاش برای اتصال رویداد تبدیل به آزمایش — فقط نخستین تبدیل معتبر هر بازدیدکننده ثبت می‌شود
  * گروه نسخه از تخصیص سمت سرور تعیین می‌شود، نه از ادعای کلاینت
+ *
+ * اتمیک بودن: به‌جای «خواندن convertedAt و سپس نوشتن» (check-then-act که دو فراخوانی موازی
+ * می‌توانستند هر دو pass شوند)، نوشتن با یک دستور UPDATE شرطی انجام می‌شود:
+ *   UPDATE … WHERE id = … AND convertedAt IS NULL
+ * در SQLite هر دستور نوشتن سری‌سازی می‌شود؛ دقیقاً یکی از دو تبدیل موازی count=۱ می‌گیرد و
+ * مقدار convertedAt فقط و فقط یک بار و برابر occurredAt برنده ثبت می‌شود — بازخوانی شمارش
+ * ردیف کافی نیست، خود مقدار ثابت می‌ماند و پاسخ بازنده نیز converted:false می‌گیرد.
  */
 export async function attributeExperimentConversion(
   db: PrismaClient,
@@ -533,12 +540,14 @@ export async function attributeExperimentConversion(
     const base = assignment.firstExposedAt?.getTime()
     if (base !== undefined) {
       const t = input.occurredAt.getTime()
-      if (t >= base && t - base <= experiment.attributionHours * 3600 * 1000 && assignment.convertedAt === null) {
-        await db.experimentAssignment.update({
-          where: { id: assignment.id },
+      if (t >= base && t - base <= experiment.attributionHours * 3600 * 1000) {
+        // claim اتمی: فقط نخستین نویسندهٔ موفق «نخستین تبدیل» را ثبت می‌کند
+        const claimed = await db.experimentAssignment.updateMany({
+          where: { id: assignment.id, convertedAt: null },
           data: { convertedAt: input.occurredAt },
         })
-        return { group, converted: true }
+        if (claimed.count === 1) return { group, converted: true }
+        return { group, converted: false }
       }
     }
   }

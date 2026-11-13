@@ -19,6 +19,7 @@ import {
 } from '@/lib/api-utils'
 import { logActivity } from '@/lib/audit'
 import { roleHasPermission } from '@/lib/permissions'
+import { isTransientDbContention } from '@/lib/db-errors'
 
 /** include مشترک برای پاسخ جزئیات مقاله */
 const detailInclude = {
@@ -245,9 +246,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const needsSnapshot =
       (article.status === 'PUBLISHED' || article.status === 'APPROVED') && contentfulChange
 
+    // هماهنگی قرارداد نسخه: محتوای تأییدشده تغییرناپذیر است — ویرایش محتوایی مقالهٔ APPROVED
+    // تأیید را باطل می‌کند و مقاله برای بازبینی و تأیید مجدد به «در بررسی» برمی‌گردد.
+    // (هم‌راستا با گارد نسخهٔ بسته‌ها: نسخهٔ جدید هرگز با تأیید قبلی منتشر نمی‌شود؛
+    // این‌جا ابطال در لحظهٔ ویرایش رخ می‌دهد تا مسیرهای انتشار گروهی/تک نیز پوشش داده شود.)
+    if (contentfulChange && article.status === 'APPROVED') {
+      data.status = 'IN_REVIEW'
+      data.reviewNote = 'ویرایش محتوا پس از تأیید؛ برای انتشار باید دوباره تأیید شود.'
+    }
+
     // timeout صریح: زیر رقابت هم‌زمان (صف‌شدن نویسنده‌های SQLite) تراکنش پیش‌فرض ۵ ثانیه‌ای ممکن است تمام شود
-    await db.$transaction(
-      async (tx) => {
+    await db
+      .$transaction(
+        async (tx) => {
       if (needsSnapshot) {
         await tx.articleVersion.create({
           data: {
@@ -303,7 +314,22 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           },
         })
       }
-    }, { timeout: 15_000, maxWait: 10_000 })
+        },
+        { timeout: 15_000, maxWait: 10_000 }
+      )
+      .catch((err: unknown) => {
+        if (err instanceof ApiError) throw err
+        // اشغال گذرای SQLite زیر رقابت هم‌زمان: علت در این نقطه معلوم است — نویسندهٔ دیگر روی
+        // همین سطر؛ بازنده با ۴۰۹ تعارض و serverUpdatedAt تازه روبه‌رو می‌شود (نه ۵۰۰/۵۰۳)
+        if (isTransientDbContention(err)) {
+          console.error('[API] article write contention (transient) → 409', err)
+          throw new ApiError(409, 'این مقاله هم‌زمان توسط دیگری ویرایش شد؛ نسخهٔ تازه بگیرید و دوباره تلاش کنید.', {
+            conflict: true,
+            transient: true,
+          })
+        }
+        throw err
+      })
 
     // خواندن جزئیات پس از کامیت (بیرون از تراکنش) — سبک‌تر و امن‌تر زیر بار هم‌زمان
     const updated = await db.article.findUnique({ where: { id }, include: detailInclude })

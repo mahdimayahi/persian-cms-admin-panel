@@ -10,7 +10,9 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "test:harness": "bun tests/harness/run.ts",
+    "build:isolated": "NEXT_DIST_DIR=.next-prod next build && cp -r .next-prod/static .next-prod/standalone/.next-prod/ && cp -r public .next-prod/standalone/"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
