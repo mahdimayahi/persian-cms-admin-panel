@@ -28,6 +28,16 @@ export function fail(status: number, message: string, data?: unknown) {
 /** تبدیل خطا به پاسخ استاندارد */
 export function handleApiError(err: unknown) {
   if (err instanceof ApiError) return fail(err.status, err.message, err.data)
+  // نقض یکتایی رکورد (ارسال هم‌زمان تکراری) → تعارض، نه خطای سرور
+  if ((err as { code?: string }).code === 'P2002') {
+    return fail(409, 'رکورد تکراری است؛ تغییر مشابهی هم‌زمان ثبت شده است.')
+  }
+  // رقابت تراکنش‌های هم‌زمان روی قفل خوش‌بینانه (SQLite) → تعارض قابل تلاش مجدد، نه خطای سرور
+  if ((err as { code?: string }).code === 'P2034' || (err as { code?: string }).code === 'P2028') {
+    return fail(409, 'این رکورد هم‌زمان توسط دیگری تغییر کرد؛ نسخه تازه بگیرید و دوباره تلاش کنید.', {
+      conflict: true,
+    })
+  }
   console.error('[API]', err)
   return fail(500, 'خطای غیرمنتظره سرور. لطفاً دوباره تلاش کنید.')
 }

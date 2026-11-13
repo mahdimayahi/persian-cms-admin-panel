@@ -27,9 +27,13 @@ export async function POST(req: NextRequest) {
       throw new ApiError(400, 'بدنهٔ درخواست نامعتبر است.')
     }
 
-    const list: Record<string, unknown>[] = Array.isArray((body as { events?: unknown[] }).events)
-      ? (body as { events: Record<string, unknown>[] }).events
-      : [body as Record<string, unknown>]
+    // بدنه میتواند آبجکت تکی یا {events:[…]} باشد؛ null/رشته/عدد به‌جای خطای ۵۰۰ به‌عنوان رویداد نامعتبر پذیرش می‌شود
+    const rawEvents = (body as { events?: unknown } | null)?.events
+    const list: unknown[] = Array.isArray(rawEvents)
+      ? rawEvents
+      : Array.isArray(body)
+        ? (body as unknown[])
+        : [body]
     if (list.length === 0 || list.length > MAX_BATCH) {
       throw new ApiError(400, `تعداد رویدادها باید بین ۱ تا ${MAX_BATCH} باشد.`)
     }
@@ -37,8 +41,15 @@ export async function POST(req: NextRequest) {
     const results: { eventId: string; status: string; reason?: string; group?: string | null }[] = []
 
     for (const raw of list) {
-      const eventId = typeof raw.eventId === 'string' ? raw.eventId : '(بدون شناسه)'
-      const normalized = normalizeEvent(raw)
+      // اعضای غیرآبجکتی (null، عدد، رشته، آرایه) رویداد نامعتبر‌اند — خطای سرور ایجاد نمی‌کنند
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        await db.eventIngestLog.create({ data: { eventId: '(بدون شناسه)', status: 'INVALID', reason: 'اعضای دسته باید آبجکت باشند.' } })
+        results.push({ eventId: '(بدون شناسه)', status: 'INVALID', reason: 'اعضای دسته باید آبجکت باشند.' })
+        continue
+      }
+      const rec = raw as Record<string, unknown>
+      const eventId = typeof rec.eventId === 'string' ? rec.eventId : '(بدون شناسه)'
+      const normalized = normalizeEvent(rec)
       if (!normalized.ok) {
         await db.eventIngestLog.create({ data: { eventId: eventId.slice(0, 100), status: 'INVALID', reason: normalized.reason } })
         results.push({ eventId, status: 'INVALID', reason: normalized.reason })
@@ -74,8 +85,38 @@ export async function POST(req: NextRequest) {
         // نقض یکتایی شناسهٔ رویداد → ارسال مجدد؛ شمارش تکراری ایجاد نمی‌شود اما ثبت می‌گردد
         const code = (err as { code?: string }).code
         if (code === 'P2002') {
+          // ارسال مجدد رویداد ثبت‌شده → تکرار شمرده نمیشود؛ اما اگر ثبت قبلی پیش از
+          // تخصیص گروه آزمایش نیمه‌کاره مانده باشد (خرابی بین ثبت رویداد و انتساب)،
+          // اینجا بر اساس دادهٔ ثبت‌شده در پایگاه داده recovery انجام می‌شود.
+          const existing = await db.analyticsEvent.findUnique({
+            where: { eventId: ev.eventId },
+            select: { experimentId: true, visitorId: true, eventType: true, occurredAt: true, variantGroup: true },
+          })
+          let dupGroup: string | null = null
+          let dupConverted = false
+          if (existing && existing.experimentId && existing.variantGroup === null) {
+            const attr = await attributeExperimentConversion(db, {
+              experimentId: existing.experimentId,
+              visitorId: existing.visitorId,
+              eventType: existing.eventType,
+              occurredAt: existing.occurredAt,
+            })
+            if (attr.group) {
+              dupGroup = attr.group
+              dupConverted = attr.converted
+              await db.analyticsEvent.update({ where: { eventId: ev.eventId }, data: { variantGroup: attr.group } })
+            }
+          } else if (existing) {
+            dupGroup = existing.variantGroup
+          }
           await db.eventIngestLog.create({ data: { eventId: ev.eventId, status: 'DUPLICATE', reason: 'رویداد با همین شناسه قبلاً ثبت شده است.' } })
-          results.push({ eventId: ev.eventId, status: 'DUPLICATE', reason: 'رویداد با همین شناسه قبلاً ثبت شده است.' })
+          const dupEntry: { eventId: string; status: string; reason?: string; group?: string | null } = {
+            eventId: ev.eventId,
+            status: dupConverted ? 'CONVERTED' : 'DUPLICATE',
+            reason: 'رویداد با همین شناسه قبلاً ثبت شده است.',
+          }
+          if (dupGroup) dupEntry.group = dupGroup
+          results.push(dupEntry)
           continue
         }
         throw err

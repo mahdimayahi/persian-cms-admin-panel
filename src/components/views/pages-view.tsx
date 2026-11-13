@@ -153,6 +153,8 @@ export function PagesView() {
         status: form.status,
         showInNav: form.showInNav,
         order: Number(form.order) || 0,
+        // قفل خوش‌بینانه: نسخهٔ پایه برای جلوگیری از بازنویسی بی‌صدای ویرایش دیگران
+        ...(editing ? { baseUpdatedAt: editing.updatedAt } : {}),
       }
       if (editing) {
         await apiPut(`/api/pages/${editing.id}`, payload)

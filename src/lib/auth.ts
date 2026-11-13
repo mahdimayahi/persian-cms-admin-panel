@@ -5,10 +5,25 @@
  */
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'crypto'
 import { db } from '@/lib/db'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 
 export const SESSION_COOKIE = 'cms_session'
 const SESSION_DAYS = 7
+
+/**
+ * تشخیص HTTPS اتصال جاری (پشت پروکسی معکوس استاندارد).
+ * کوکی نشست فقط روی اتصال امن پرچم Secure می‌گیرد تا در استقرار HTTPS
+ * هرگز از کانال غیررمز ارسال نشود؛ در توسعه/localhost بدون پروکسی false می‌ماند.
+ */
+export async function isHttpsRequest(): Promise<boolean> {
+  try {
+    const h = await headers()
+    const proto = h.get('x-forwarded-proto') ?? ''
+    return proto.split(',')[0].trim() === 'https'
+  } catch {
+    return false
+  }
+}
 
 export function hashPassword(password: string): string {
   const salt = randomBytes(16).toString('hex')
@@ -38,7 +53,7 @@ export async function createSession(userId: string, userAgent?: string) {
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: false,
+    secure: await isHttpsRequest(),
     path: '/',
     expires: expiresAt,
   })

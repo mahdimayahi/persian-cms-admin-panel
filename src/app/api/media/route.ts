@@ -44,6 +44,22 @@ const MIME_EXT: Record<string, string> = {
   'application/pdf': 'pdf',
 }
 
+/**
+ * تشخیص نوع واقعی فایل از امضای باینری (magic bytes).
+ * ادعای MIME کلاینت قابل جعل است؛ نوع ذخیره‌شده فقط بر اساس محتوای واقعی تعیین می‌شود.
+ */
+function sniffMime(buf: Buffer): string | null {
+  if (buf.length < 12) return null
+  const hex = buf.subarray(0, 12).toString('hex')
+  const ascii = buf.subarray(0, 12).toString('latin1')
+  if (hex.startsWith('89504e470d0a1a0a')) return 'image/png'
+  if (hex.startsWith('ffd8ff')) return 'image/jpeg'
+  if (ascii.startsWith('GIF87a') || ascii.startsWith('GIF89a')) return 'image/gif'
+  if (ascii.startsWith('RIFF') && ascii.slice(8, 12) === 'WEBP') return 'image/webp'
+  if (ascii.startsWith('%PDF-')) return 'application/pdf'
+  return null
+}
+
 export async function GET(req: NextRequest) {
   try {
     await requirePermission('media.view')
@@ -93,18 +109,26 @@ export async function POST(req: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer())
 
-    // استخراج ابعاد تصویر (اختیاری؛ در صورت خطا نادیده گرفته می‌شود)
+    // راستی‌آزمایی نوع واقعی فایل: ادعای MIME باید با امضای باینری محتوا مطابقت داشته باشد
+    // (فایل غیرتصویری با MIME جعلی تصویر اینجا رد می‌شود و هرگز ذخیره نمی‌شود)
+    const sniffed = sniffMime(buffer)
+    if (!sniffed || sniffed !== mimeType) {
+      throw new ApiError(415, 'محتوای فایل با نوع اعلام‌شده مطابقت ندارد یا نوع آن پشتیبانی نمی‌شود.')
+    }
+
+    // استخراج ابعاد تصویر و راستی‌آزمایی سلامت فایل:
+    // تصویر خراب/بریده‌شده باید کامل شکست بخورد و بدون ذخیره‌سازی رد شود
     let width: number | null = null
     let height: number | null = null
     if (mimeType.startsWith('image/')) {
       try {
         const sharp = (await import('sharp')).default
         const meta = await sharp(buffer).metadata()
-        width = meta.width ?? null
-        height = meta.height ?? null
+        if (!meta.width || !meta.height) throw new Error('تصویر فاقد ابعاد معتبر است')
+        width = meta.width
+        height = meta.height
       } catch {
-        width = null
-        height = null
+        throw new ApiError(415, 'فایل تصویری معتبر نیست یا خراب است.')
       }
     }
 

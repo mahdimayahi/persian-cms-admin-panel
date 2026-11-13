@@ -95,15 +95,35 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const body = await parseBody<ArticleUpdateBody>(req)
 
-    // قفل خوش‌بینانه: اگر مقاله پس از باز شدن ویرایشگر، توسط دیگری تغییر کرده باشد
-    if (typeof body.baseUpdatedAt === 'string' && body.baseUpdatedAt.trim() !== '') {
-      const base = new Date(body.baseUpdatedAt)
-      if (!Number.isNaN(base.getTime()) && base.getTime() < article.updatedAt.getTime() - 1000) {
+    // قفل خوش‌بینانه — اعتبارسنجی نسخهٔ پایه:
+    //  • نسخهٔ پایهٔ نامعتبر → 400 (به‌جای عبور بی‌صدا از چک)
+    //  • ویرایش محتوایی بدون نسخهٔ پایه → 400 (جلوگیری از بازنویسی بی‌صدای تغییر دیگران)
+    //  • نسخهٔ پایهٔ قدیمی‌تر از وضعیت فعلی → 409 (بررسی سریع؛ داوری نهایی CAS اتمی داخل تراکنش)
+    const CONTENTFUL_FIELDS = [
+      'title', 'slug', 'excerpt', 'content', 'categoryId',
+      'tagIds', 'coverImageId', 'seoTitle', 'seoDescription', 'noindex',
+    ] as const
+    const touchesContent = CONTENTFUL_FIELDS.some((k) => body[k] !== undefined)
+
+    let baseTime: number | null = null
+    if (
+      body.baseUpdatedAt !== undefined &&
+      body.baseUpdatedAt !== null &&
+      String(body.baseUpdatedAt).trim() !== ''
+    ) {
+      const parsed = new Date(String(body.baseUpdatedAt))
+      if (Number.isNaN(parsed.getTime())) {
+        throw new ApiError(400, 'نسخهٔ پایهٔ ویرایش (baseUpdatedAt) نامعتبر است؛ ویرایشگر را ببندید و دوباره باز کنید.')
+      }
+      baseTime = parsed.getTime()
+      if (baseTime < article.updatedAt.getTime()) {
         throw new ApiError(409, 'این مقاله پس از باز شدن شما توسط شخص دیگری ویرایش شده است.', {
           conflict: true,
           serverUpdatedAt: article.updatedAt,
         })
       }
+    } else if (touchesContent) {
+      throw new ApiError(400, 'ویرایش محتوایی بدون نسخهٔ پایه مجاز نیست؛ فیلد baseUpdatedAt (زمان آخرین دریافت مقاله) لازم است.')
     }
 
     const data: Prisma.ArticleUncheckedUpdateInput = {}
@@ -225,7 +245,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const needsSnapshot =
       (article.status === 'PUBLISHED' || article.status === 'APPROVED') && contentfulChange
 
-    const updated = await db.$transaction(async (tx) => {
+    // timeout صریح: زیر رقابت هم‌زمان (صف‌شدن نویسنده‌های SQLite) تراکنش پیش‌فرض ۵ ثانیه‌ای ممکن است تمام شود
+    await db.$transaction(
+      async (tx) => {
       if (needsSnapshot) {
         await tx.articleVersion.create({
           data: {
@@ -239,7 +261,22 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           },
         })
       }
-      await tx.article.update({ where: { id }, data })
+      // CAS اتمی روی نسخهٔ پایه: اگر بین خواندن اولیه و نوشتن، ویرایشگر دیگری مقاله را
+      // تغییر داده باشد (updatedAt عوض شده)، شمارش صفر و خطای تعارض برمی‌گردد —
+      // دو ویرایش هم‌زمان با نسخهٔ پایهٔ یکسان هرگز هر دو موفق نمی‌شوند.
+      if (Object.keys(data).length > 0) {
+        const cas =
+          baseTime !== null
+            ? await tx.article.updateMany({ where: { id, updatedAt: new Date(baseTime) }, data })
+            : await tx.article.updateMany({ where: { id }, data })
+        if (cas.count === 0) {
+          const fresh = await tx.article.findUnique({ where: { id }, select: { updatedAt: true } })
+          throw new ApiError(409, 'این مقاله پس از باز شدن شما توسط شخص دیگری ویرایش شده است.', {
+            conflict: true,
+            serverUpdatedAt: fresh?.updatedAt ?? article.updatedAt,
+          })
+        }
+      }
       if (replaceTags) {
         await tx.articleTag.deleteMany({ where: { articleId: id } })
         if (tagIds.length > 0) {
@@ -266,8 +303,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           },
         })
       }
-      return tx.article.findUnique({ where: { id }, include: detailInclude })
-    })
+    }, { timeout: 15_000, maxWait: 10_000 })
+
+    // خواندن جزئیات پس از کامیت (بیرون از تراکنش) — سبک‌تر و امن‌تر زیر بار هم‌زمان
+    const updated = await db.article.findUnique({ where: { id }, include: detailInclude })
 
     if (!updated) throw new ApiError(404, 'مقاله یافت نشد.')
 

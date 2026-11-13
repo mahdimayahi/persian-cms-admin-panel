@@ -53,15 +53,31 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       registerRedirect?: unknown // ثبت ریدایرکت از آدرس قبلی
     }>(req)
 
-    // قفل خوش‌بینانه: اگر صفحه پس از باز شدن ویرایشگر، توسط دیگری تغییر کرده باشد
-    if (typeof body.baseUpdatedAt === 'string' && body.baseUpdatedAt.trim() !== '') {
-      const base = new Date(body.baseUpdatedAt)
-      if (!Number.isNaN(base.getTime()) && base.getTime() < page.updatedAt.getTime() - 1000) {
+    // قفل خوش‌بینانه — اعتبارسنجی نسخهٔ پایه:
+    //  • نسخهٔ پایهٔ نامعتبر → 400؛ ویرایش محتوایی بدون نسخهٔ پایه → 400؛ قدیمی → 409
+    //  (داوری نهایی CAS اتمی داخل تراکنش انجام می‌شود)
+    const PAGE_CONTENTFUL_FIELDS = ['title', 'slug', 'content', 'status', 'showInNav', 'order'] as const
+    const touchesContent = PAGE_CONTENTFUL_FIELDS.some((k) => body[k] !== undefined)
+
+    let baseTime: number | null = null
+    if (
+      body.baseUpdatedAt !== undefined &&
+      body.baseUpdatedAt !== null &&
+      String(body.baseUpdatedAt).trim() !== ''
+    ) {
+      const parsed = new Date(String(body.baseUpdatedAt))
+      if (Number.isNaN(parsed.getTime())) {
+        throw new ApiError(400, 'نسخهٔ پایهٔ ویرایش (baseUpdatedAt) نامعتبر است؛ ویرایشگر را ببندید و دوباره باز کنید.')
+      }
+      baseTime = parsed.getTime()
+      if (baseTime < page.updatedAt.getTime()) {
         throw new ApiError(409, 'این صفحه پس از باز شدن شما توسط شخص دیگری ویرایش شده است.', {
           conflict: true,
           serverUpdatedAt: page.updatedAt,
         })
       }
+    } else if (touchesContent) {
+      throw new ApiError(400, 'ویرایش صفحه بدون نسخهٔ پایه مجاز نیست؛ فیلد baseUpdatedAt لازم است.')
     }
 
     const data: Prisma.PageUncheckedUpdateInput = {}
@@ -112,7 +128,22 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const registerRedirect = slugChanged && page.status === 'PUBLISHED' && (body.registerRedirect === true || body.registerRedirect === 'true')
 
     const updated = await db.$transaction(async (tx) => {
-      const u = await tx.page.update({ where: { id }, data })
+      // CAS اتمی روی نسخهٔ پایه: دو ویرایش هم‌زمان با نسخهٔ پایهٔ یکسان هرگز هر دو موفق نمی‌شوند
+      if (Object.keys(data).length > 0) {
+        const cas =
+          baseTime !== null
+            ? await tx.page.updateMany({ where: { id, updatedAt: new Date(baseTime) }, data })
+            : await tx.page.updateMany({ where: { id }, data })
+        if (cas.count === 0) {
+          const fresh = await tx.page.findUnique({ where: { id }, select: { updatedAt: true } })
+          throw new ApiError(409, 'این صفحه پس از باز شدن شما توسط شخص دیگری ویرایش شده است.', {
+            conflict: true,
+            serverUpdatedAt: fresh?.updatedAt ?? page.updatedAt,
+          })
+        }
+      }
+      const u = await tx.page.findUnique({ where: { id } })
+      if (!u) throw new ApiError(404, 'صفحه یافت نشد.')
       if (registerRedirect) {
         // ساخت/به‌روزرسانی ریدایرکت از آدرس قبلی به آدرس جدید
         await tx.redirect.upsert({

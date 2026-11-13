@@ -558,9 +558,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (action === 'PUBLISH') {
       const user = await requirePermission('articles.publish')
       const bundle = await loadDetailBundle(id)
-      if (bundle.status === 'PUBLISHING') throw new ApiError(409, 'بسته در حال انتشار است.')
+      // وضعیت PUBLISHING به runner واگذار می‌شود: اجرای زنده با ۴۰۹ رد و اجرای معلق (قطع پردازشگر) بازیابی می‌شود
       if (bundle.status === 'IN_REVIEW') throw new ApiError(409, 'ابتدا بسته را تأیید کنید.')
-      if (!['APPROVED', 'SCHEDULED'].includes(bundle.status)) {
+      if (!['APPROVED', 'SCHEDULED', 'PUBLISHING'].includes(bundle.status)) {
         throw new ApiError(400, 'انتشار فقط برای بسته تأییدشده یا زمان‌بندی‌شده مجاز است.')
       }
       const execution = await executeBundle(id, { id: user.id, name: user.name })
@@ -580,7 +580,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (action === 'RETRY') {
       const user = await requirePermission('articles.publish')
       const bundle = await loadDetailBundle(id)
-      if (!['PARTIAL', 'FAILED'].includes(bundle.status)) {
+      // وضعیت PUBLISHING به runner واگذار می‌شود (بازیابی اجرای معلق یا رد با ۴۰۹)
+      if (!['PARTIAL', 'FAILED', 'PUBLISHING'].includes(bundle.status)) {
         throw new ApiError(400, 'تلاش مجدد فقط برای بسته‌های دارای انتشار جزئی یا ناموفق مجاز است.')
       }
       const execution = await executeBundle(id, { id: user.id, name: user.name }, { retryOnly: true })

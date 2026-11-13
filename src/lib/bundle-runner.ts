@@ -213,6 +213,46 @@ export async function invalidateApproval(
 
 // ─── اجرای بسته ──────────────────────────────────────────────────
 
+/** آستانهٔ مرگ پردازشگر برای اجرای معلق بسته — هماهنگ با STALE_MS در operations */
+const BUNDLE_STALE_MS = 90_000
+
+/**
+ * بازیابی اجرای معلق: اگر بسته در وضعیت PUBLISHING رها شده باشد (قطع پردازشگر)،
+ * رکورد عملیات RUNNING قدیمی بسته و وضعیت بسته بر اساس نتایج ثبت‌شدهٔ اقلام بازسازی می‌شود.
+ * اگر اجرای جاری زنده باشد (ضربان تازه)، خطای ۴۰۹ برمی‌گردد.
+ */
+async function reclaimStaleBundleRun(bundleId: string): Promise<void> {
+  const bundle = await db.publishBundle.findUnique({ where: { id: bundleId }, select: { status: true } })
+  if (bundle?.status !== 'PUBLISHING') return
+
+  const lastRunning = await db.operationLog.findFirst({
+    where: { type: 'BUNDLE_PUBLISH', relatedId: bundleId, status: 'RUNNING' },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, heartbeatAt: true, startedAt: true },
+  })
+  if (lastRunning) {
+    const last = lastRunning.heartbeatAt ?? lastRunning.startedAt
+    if (last && Date.now() - last.getTime() <= BUNDLE_STALE_MS) {
+      throw new ApiError(409, 'بسته در حال انتشار است؛ تا پایان این اجرا صبر کنید.')
+    }
+    await db.operationLog.update({
+      where: { id: lastRunning.id },
+      data: {
+        status: 'FAILED',
+        finishedAt: new Date(),
+        resultSummary: 'اجرا پیشین بدون پایان‌رسیدن متوقف شد (قطع پردازشگر).',
+      },
+    })
+  }
+
+  // بازسازی وضعیت بسته از نتایج ثبت‌شدهٔ اقلام تا claim اتمی بعدی بتواند مالکیت بگیرد
+  const items = await db.bundleItem.findMany({ where: { bundleId }, select: { result: true } })
+  const succeeded = items.filter((i) => i.result === 'SUCCESS').length
+  const failed = items.filter((i) => i.result === 'FAILED').length
+  const restored = failed > 0 ? (succeeded > 0 ? 'PARTIAL' : 'FAILED') : 'APPROVED'
+  await db.publishBundle.update({ where: { id: bundleId }, data: { status: restored } })
+}
+
 /** دلیل فارسی عدم امکان انتشار بر اساس وضعیت مقاله */
 function publishBlockReason(status: string): string {
   switch (status) {
@@ -249,19 +289,6 @@ export async function executeBundle(
   if (!bundle) throw new ApiError(404, 'بسته یافت نشد.')
   if (bundle.items.length === 0) throw new ApiError(400, 'بسته هیچ قلمی ندارد؛ ابتدا قلم افزوده شود.')
 
-  // گارد نسخه پیش از هر اجرا — هیچ اجرای جزئی پس از مغایرت نسخه آغاز نمی‌شود
-  const problems = await verifyApprovalVersionGuard(bundleId)
-  if (problems.length > 0) {
-    await invalidateApproval(
-      bundle,
-      'تغییر نسخه پس از تأیید؛ تأیید بسته باطل شد و برای بررسی مجدد بازگشت.',
-      actor
-    )
-    throw new ApiError(409, 'تأیید بسته باطل شد؛ نسخه برخی قلم‌ها پس از تأیید تغییر کرده است.', {
-      problems,
-    })
-  }
-
   // تعیین قلم‌های هدف اجرا
   let targets = bundle.items
   let retryOfId: string | null = null
@@ -279,7 +306,34 @@ export async function executeBundle(
     retryOfId = lastOp?.id ?? null
   }
 
-  await db.publishBundle.update({ where: { id: bundleId }, data: { status: 'PUBLISHING' } })
+  // بازیابی اجرای معلق (قطع پردازشگر) — اجرای زنده با ۴۰۹ رد می‌شود
+  await reclaimStaleBundleRun(bundleId)
+
+  // گارد نسخه پیش از هر اجرا — هیچ اجرای جزئی پس از مغایرت نسخه آغاز نمی‌شود
+  const problems = await verifyApprovalVersionGuard(bundleId)
+  if (problems.length > 0) {
+    await invalidateApproval(
+      bundle,
+      'تغییر نسخه پس از تأیید؛ تأیید بسته باطل شد و برای بررسی مجدد بازگشت.',
+      actor
+    )
+    throw new ApiError(409, 'تأیید بسته باطل شد؛ نسخه برخی قلم‌ها پس از تأیید تغییر کرده است.', {
+      problems,
+    })
+  }
+
+  // مالکیت اتمی اجرا: فقط یک درخواست می‌تواند بسته را از وضعیت مجاز به PUBLISHING ببرد؛
+  // درخواست هم‌زمان دوم شمارش صفر می‌گیرد و با ۴۰۹ رد می‌شود (claim-then-act بدون رقابت).
+  const claim = await db.publishBundle.updateMany({
+    where: {
+      id: bundleId,
+      status: retryOnly ? { in: ['PARTIAL', 'FAILED'] } : { in: ['APPROVED', 'SCHEDULED'] },
+    },
+    data: { status: 'PUBLISHING' },
+  })
+  if (claim.count === 0) {
+    throw new ApiError(409, 'بسته در حال اجراست یا وضعیت آن برای اجرا مجاز نیست.')
+  }
 
   const opLog = await db.operationLog.create({
     data: {
@@ -292,12 +346,16 @@ export async function executeBundle(
       relatedId: bundleId,
       retryOfId,
       startedAt: new Date(),
+      heartbeatAt: new Date(),
     },
   })
 
   const results: BundleItemResult[] = []
 
   for (const item of bundle.items) {
+    // ضربان قلب پردازشگر در هر قلم — مبنای تشخیص اجرای معلق پس از قطع ناگهانی
+    await db.operationLog.update({ where: { id: opLog.id }, data: { heartbeatAt: new Date() } })
+
     const article = item.article
     const title = article.title
 
@@ -324,6 +382,14 @@ export async function executeBundle(
         results.push({ itemId: item.id, articleId: article.id, title, result: 'SUCCESS', message: msg })
         await db.bundleItem.update({ where: { id: item.id }, data: { result: 'SUCCESS', message: msg } })
       } else if (article.status === 'APPROVED') {
+        // گارد نسخه در لحظهٔ انتشار هر قلم: نسخهٔ هدف باید همان آخرین نسخهٔ مقاله باشد؛
+        // در غیر این صورت نسخهٔ تأییدنشده هرگز منتشر نمیشود (پوشش رقابت بین گارد اولیه و اجرا)
+        const versions = await listArticleVersionsAsc(article.id)
+        const latest = versions[versions.length - 1]
+        const targetId = item.approvedVersionId ?? item.versionId
+        if (!targetId || !latest || latest.id !== targetId) {
+          throw new Error('تغییر نسخه پس از تأیید؛ انتشار این قلم متوقف شد تا نسخهٔ تأییدنشده منتشر نشود.')
+        }
         await db.article.update({
           where: { id: article.id },
           data: { status: 'PUBLISHED', publishedAt: new Date(), reviewNote: null },
