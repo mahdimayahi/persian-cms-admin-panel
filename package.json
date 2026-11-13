@@ -11,6 +11,8 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
+    "db:backup": "bun scripts/backup.ts",
+    "db:restore": "bun scripts/restore.ts",
     "test:harness": "bun tests/harness/run.ts",
     "build:isolated": "NEXT_DIST_DIR=.next-prod next build && cp -r .next-prod/static .next-prod/standalone/.next-prod/ && cp -r public .next-prod/standalone/"
   },

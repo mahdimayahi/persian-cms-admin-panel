@@ -398,9 +398,18 @@ sudo certbot --nginx -d cms.example.ir    # فعال‌سازی HTTPS
 
 ## فاز ۷ — پشتیبان‌گیری و بازیابی
 
-همه‌چیزِ مهم داخل یک فایل است: `db/custom.db`. پشتیبان‌گیری آن یعنی پشتیبان‌گیری کل سیستم (شامل رسانه‌ها).
+همه‌چیزِ مهم داخل یک فایل است: `db/custom.db`. پشتیبان‌گیری آن یعنی پشتیبان‌گیری کل سیستم (شامل رسانه‌ها — رسانه‌ها به‌صورت base64 داخل خود پایگاه‌داده ذخیره می‌شوند و فایل مجزا ندارند).
 
-### گام ۷.۱ — اسکریپت پشتیبان‌گیری
+### گام ۷.۱ — روش پیشنهادی: اسکریپت‌های داخل مخزن (بدون وابستگی خارجی)
+
+```bash
+bun run db:backup          # پشتیبان سازگار با VACUUM INTO + مانیفست → backups/
+bun scripts/restore.ts --from backups/cms_X.db --to /مسیر/جدید/restored.db   # فقط مسیر جدید + راستی‌آزمایی خودکار
+```
+
+این اسکریپت‌ها snapshot تراکنشی می‌سازند (کپی خام فایل `.db` در حال کار مجاز نیست)، مانیفستِ بدونِ-راز می‌سازند، و پس از بازیابی integrity/FK/شمارش‌ها/هش رسانه‌ها را خودکار راستی‌آزمایی می‌کنند. جزئیات کامل و نتایج اندازه‌گیری‌شده: `docs/backup-restore.md`. خروجی‌های `backups/` هرگز وارد Git نمی‌شوند.
+
+### گام ۷.۱-جایگزین — روش sqlite3 CLI (اگر sqlite3 روی سرور موجود است)
 
 ```bash
 sudo tee /usr/local/bin/cms-backup.sh <<'EOF'
@@ -475,10 +484,13 @@ journalctl -u persian-cms -n 30
 
 ### بازگشت به نسخه قبلی (rollback)
 
+جزئیات کامل و تفکیک «rollback کد» از «rollback داده» در `docs/staging-and-rollback.md` آمده است. نکات کلیدی:
+
 ```bash
 sudo -iu cmsrun
 cd /var/www/persian-cms
 sudo systemctl stop persian-cms
+sqlite3 db/custom.db ".backup '/var/backups/persian-cms/pre-rollback_$(date +%F_%H-%M).db'"   # پشتیبان پیش از هر تغییر
 git log --oneline -5          # پیدا کردن commit سالم قبلی
 git checkout <commit-قبلی>
 bun install && bun run build
@@ -486,6 +498,9 @@ exit
 sudo systemctl start persian-cms
 # اگر اسکیمای پایگاه‌داده هم تغییر کرده بود، پشتیبانِ پیش از بروزرسانی را بازیابی کنید (گام ۷.۴)
 ```
+
+- برگشت Git به‌تنهایی rollback دیتابیس نیست؛ دو مسیر جدا هستند.
+- تغییر اسکیمای نسخهٔ جاری فقط **افزودنی و nullable** است (`PublishBundle.runOpId`)؛ آزمون واقعی نشان داد کد قدیم روی اسکیمای جدید سالم کار می‌کند — پس rollback کدِ تنها معمولاً کافی است؛ rollback داده فقط برای بازگشت به لحظهٔ پشتیبان لازم است و نوشته‌های پس از پشتیبان را از دست می‌دهد.
 
 ---
 
@@ -557,6 +572,8 @@ SQLite برای تیم‌های کوچک و متوسط (ده‌ها کاربر �
 ```bash
 bun run test:harness        # سویت «کوکی Secure — قرارداد اعتماد به پروکسی»
 ```
+
+آزمون واقعی TLS/proxy (ریدایرکت HTTP→HTTPS، کوکی Secure روی TLS واقعی، شکست جعل هدر از طریق proxy، lifecycle نشست) در staging این نسخه روی Caddy واقعی با TLS واقعی اجرا شد — سناریوها و نتایج: چک‌لیست S1..S11 در `docs/staging-and-rollback.md`. تنها بخش مسدود محیطی: گواهی با اعتبار عمومی (Let's Encrypt) نیازمند دامنه و پورت‌های ۸۰/۴۴۳ است و پس از استقرار واقعی آزمون می‌شود.
 
 ## بیلد ایزولهٔ production و هارنس تست
 

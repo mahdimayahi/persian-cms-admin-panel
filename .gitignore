@@ -61,3 +61,8 @@ agent-ctx/*.md.tmp
 /.next-harness/
 /.next-prod/
 /db/prod-smoke.db
+
+# پشتیبان‌ها هرگز وارد Git نمی‌شوند
+/backups/
+# نمونهٔ پیکربندی مجاز است (فقط placeholder)
+!.env.example
